@@ -59,6 +59,12 @@ struct TrafficLightView: View {
             .frame(width: Metric.lamp, height: Metric.lamp)
             .opacity(on ? 1 : 0.16)
             .overlay(Circle().stroke(Color.white.opacity(on ? 0.35 : 0), lineWidth: 0.8))
+            // Спиннер «идёт процесс» — только на активной лампе, кроме idle (готово).
+            .overlay {
+                if on && which != .idle {
+                    Spinner().frame(width: Metric.lamp * 0.62, height: Metric.lamp * 0.62)
+                }
+            }
             .shadow(color: on ? which.color.opacity(0.9) : .clear, radius: on ? 5 : 0)
     }
 
@@ -89,6 +95,26 @@ struct TrafficLightView: View {
     private var blockBorder: some View {
         RoundedRectangle(cornerRadius: Metric.corner, style: .continuous)
             .stroke(Color.white.opacity(0.12), lineWidth: 1)
+    }
+}
+
+/// Крутящаяся дуга — индикатор «идёт процесс» по центру активной лампы.
+struct Spinner: View {
+    @State private var spin = false
+
+    var body: some View {
+        Circle()
+            .trim(from: 0, to: 0.28)
+            .stroke(
+                Color.white.opacity(0.92),
+                style: StrokeStyle(lineWidth: 2, lineCap: .round)
+            )
+            .rotationEffect(.degrees(spin ? 360 : 0))
+            .onAppear {
+                withAnimation(.linear(duration: 0.8).repeatForever(autoreverses: false)) {
+                    spin = true
+                }
+            }
     }
 }
 

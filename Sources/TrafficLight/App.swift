@@ -28,7 +28,7 @@ final class AppController: NSObject, NSApplicationDelegate {
                 self?.handleHover(inside)
             })
         )
-        content.frame = NSRect(x: 0, y: 0, width: 130, height: 120)
+        content.frame = NSRect(x: 0, y: 0, width: Metric.canvas, height: Metric.canvas)
 
         let window = OverlayWindow(
             contentRect: content.frame,

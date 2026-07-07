@@ -7,6 +7,9 @@ enum Metric {
     static let blockPadding: CGFloat = 5
     static let corner: CGFloat = 7
 
+    /// Размер холста-окна: с запасом полей под hover-увеличение и свечение.
+    static let canvas: CGFloat = 140
+
     /// Высота блока светофора.
     static var blockHeight: CGFloat {
         3 * lamp + 2 * lampSpacing + 2 * blockPadding
@@ -22,7 +25,7 @@ struct TrafficLightView: View {
     @State private var hovered = false
 
     var body: some View {
-        HStack(alignment: .center, spacing: 0) {
+        HStack(alignment: .top, spacing: 0) {          // «?» на уровне верхней (красной) лампы
             lampColumn
             if session.awaitingQuestion {
                 Spacer().frame(width: 4)            // ровно 4px справа от светофора
@@ -31,14 +34,20 @@ struct TrafficLightView: View {
             }
         }
         .padding(5)
-        .scaleEffect(hovered ? 1.2 : 1.0)          // «навели точно на меня»
         .animation(.easeOut(duration: 0.12), value: session.status)
         .animation(.easeOut(duration: 0.12), value: session.awaitingQuestion)
-        .animation(.spring(response: 0.25, dampingFraction: 0.65), value: hovered)
+        .animation(.easeOut(duration: 0.15), value: hovered)
         .onHover { inside in
             hovered = inside
             onHover(inside)
+            if inside { NSCursor.pointingHand.push() } else { NSCursor.pop() }
         }
+    }
+
+    /// Корпус: ярче при наведении.
+    private var corpusColor: Color {
+        hovered ? Color(red: 0.17, green: 0.17, blue: 0.19)
+                : Color(red: 0.07, green: 0.07, blue: 0.08)
     }
 
     private var lampColumn: some View {
@@ -69,23 +78,24 @@ struct TrafficLightView: View {
             .shadow(color: on ? which.color.opacity(0.9) : .clear, radius: on ? 5 : 0)
     }
 
-    /// Доп-секция «вопрос» — блок как у светофора с горящим кружком «?».
+    /// Доп-секция «вопрос»: горящая синяя заливка на всю область блока
+    /// с отступом 2px от края, «?» по центру.
     private var questionBlock: some View {
         let blue = Color(red: 0.30, green: 0.55, blue: 0.98)
-        return ZStack {
-            Circle()
-                .fill(blue)
-                .frame(width: Metric.lamp, height: Metric.lamp)
-                .overlay(Circle().stroke(Color.white.opacity(0.35), lineWidth: 0.8))
-                .shadow(color: blue, radius: 6)          // горит, как лампа светофора
-                .shadow(color: blue.opacity(0.7), radius: 3)
-            Image(systemName: "questionmark")
-                .font(.system(size: Metric.lamp * 0.66, weight: .heavy))
-                .foregroundColor(.white)
-        }
-        .padding(Metric.blockPadding)
-        .background(blockBackground)
-        .overlay(blockBorder)
+        return Image(systemName: "questionmark")
+            .font(.system(size: Metric.lamp * 0.72, weight: .heavy))
+            .foregroundColor(.white)
+            .frame(width: Metric.lamp, height: Metric.lamp)
+            .padding(Metric.blockPadding)
+            .background(
+                RoundedRectangle(cornerRadius: Metric.corner - 2, style: .continuous)
+                    .fill(blue)
+                    .shadow(color: blue, radius: 6)      // горит, как лампа
+                    .shadow(color: blue.opacity(0.7), radius: 3)
+                    .padding(2)                          // отступ 2px от края корпуса
+            )
+            .background(blockBackground)
+            .overlay(blockBorder)
     }
 
     /// Цвет спиннера: жёлтый лампы, но заметно темнее (белый на жёлтом теряется), иначе белый.
@@ -96,7 +106,7 @@ struct TrafficLightView: View {
 
     private var blockBackground: some View {
         RoundedRectangle(cornerRadius: Metric.corner, style: .continuous)
-            .fill(Color(red: 0.07, green: 0.07, blue: 0.08))
+            .fill(corpusColor)
     }
 
     private var blockBorder: some View {
@@ -132,12 +142,16 @@ struct RootView: View {
     var onHover: (Bool) -> Void = { _ in }
 
     var body: some View {
-        Group {
+        // Фиксированный прозрачный холст: светофор строго по центру,
+        // вокруг — поля, чтобы hover-увеличение и свечение не подрезались краями окна.
+        ZStack {
+            Color.clear
             if let session = store.active {
                 TrafficLightView(session: session, onHover: onHover)
             } else {
                 TrafficLightView(session: SessionState(id: "—", label: "idle"), onHover: onHover)
             }
         }
+        .frame(width: Metric.canvas, height: Metric.canvas)
     }
 }

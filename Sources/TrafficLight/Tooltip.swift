@@ -19,7 +19,7 @@ final class TooltipPanel {
         panel.contentView = host
         panel.isOpaque = false
         panel.backgroundColor = .clear
-        panel.hasShadow = true
+        panel.hasShadow = false
         panel.level = .popUpMenu                       // поверх светофора
         panel.collectionBehavior = [.canJoinAllSpaces, .stationary, .fullScreenAuxiliary]
         panel.ignoresMouseEvents = true                // не мешает мыши
@@ -29,7 +29,7 @@ final class TooltipPanel {
     func show(folder: String, branch: String?, near windowFrame: NSRect) {
         model.folder = folder
         model.branch = branch
-        panel.layoutIfNeeded()
+        host.layoutSubtreeIfNeeded()
         let size = host.fittingSize
         panel.setContentSize(size)
 

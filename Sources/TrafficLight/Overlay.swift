@@ -1,27 +1,5 @@
 import SwiftUI
 
-/// Геометрия (в 2 раза меньше исходной).
-enum Metric {
-    static let lamp: CGFloat = 13
-    static let lampSpacing: CGFloat = 4
-    static let blockPadding: CGFloat = 5
-    static let corner: CGFloat = 7
-
-    static let rowGap: CGFloat = 12        // отступ между светофорами
-    static let rowPad: CGFloat = 8         // поля ряда под свечение
-    static let questionGap: CGFloat = 4    // отступ доп-секции от светофора
-
-    /// Высота блока светофора.
-    static var blockHeight: CGFloat {
-        3 * lamp + 2 * lampSpacing + 2 * blockPadding
-    }
-
-    /// Ширина одного блока (светофор или доп-секция).
-    static var blockWidth: CGFloat {
-        lamp + 2 * blockPadding
-    }
-}
-
 /// Один вертикальный светофор: лампы + доп-секция «вопрос» справа.
 /// onHover пробрасывается наружу для показа всплывающей подсказки.
 struct TrafficLightView: View {
@@ -34,14 +12,13 @@ struct TrafficLightView: View {
         HStack(alignment: .top, spacing: 0) {          // «?» на уровне верхней (красной) лампы
             lampColumn
             if session.awaitingQuestion {
-                Spacer().frame(width: 4)            // ровно 4px справа от светофора
-                questionBlock
-                    .transition(.opacity)
+                Spacer().frame(width: Metric.questionGap)
+                questionBlock.transition(.opacity)
             }
         }
-        .animation(.easeOut(duration: 0.12), value: session.status)
-        .animation(.easeOut(duration: 0.12), value: session.awaitingQuestion)
-        .animation(.easeOut(duration: 0.15), value: hovered)
+        .animation(Anim.status, value: session.status)
+        .animation(Anim.question, value: session.awaitingQuestion)
+        .animation(Anim.hover, value: hovered)
         .onHover { inside in
             hovered = inside
             onHover(inside)
@@ -49,11 +26,7 @@ struct TrafficLightView: View {
         }
     }
 
-    /// Корпус: ярче при наведении.
-    private var corpusColor: Color {
-        hovered ? Color(red: 0.17, green: 0.17, blue: 0.19)
-                : Color(red: 0.07, green: 0.07, blue: 0.08)
-    }
+    // MARK: - Светофор
 
     private var lampColumn: some View {
         VStack(spacing: Metric.lampSpacing) {
@@ -62,61 +35,59 @@ struct TrafficLightView: View {
             lamp(.idle)
         }
         .padding(Metric.blockPadding)
-        .background(blockBackground)
-        .overlay(blockBorder)
+        .background(corpus)
+        .overlay(border)
     }
 
     private func lamp(_ which: AgentStatus) -> some View {
         let on = session.status == which
+        let color = Palette.lamp(for: which)
         return Circle()
-            .fill(which.color)
+            .fill(color)
             .frame(width: Metric.lamp, height: Metric.lamp)
-            .opacity(on ? 1 : 0.16)
-            .overlay(Circle().stroke(Color.white.opacity(on ? 0.35 : 0), lineWidth: 0.8))
+            .opacity(on ? 1 : Metric.lampInactiveOpacity)
+            .overlay(Circle().stroke(Color.white.opacity(on ? Metric.lampActiveStroke : 0), lineWidth: 0.8))
             // Спиннер «идёт процесс» — только на активной лампе, кроме idle (готово).
             .overlay {
                 if on && which != .idle {
-                    Spinner(color: spinnerColor(for: which))
-                        .frame(width: Metric.lamp * 0.62, height: Metric.lamp * 0.62)
+                    Spinner(color: Palette.spinner(for: which))
+                        .frame(width: Metric.lamp * Metric.spinnerFactor,
+                               height: Metric.lamp * Metric.spinnerFactor)
                 }
             }
-            .shadow(color: on ? which.color.opacity(0.9) : .clear, radius: on ? 5 : 0)
+            .shadow(color: on ? color.opacity(0.9) : .clear, radius: on ? Metric.lampGlow : 0)
     }
 
-    /// Доп-секция «вопрос»: горящая синяя заливка на всю область блока
-    /// с отступом 2px от края, «?» по центру.
+    // MARK: - Доп-секция «вопрос»
+
+    /// Горящая синяя заливка на всю область блока с отступом от края, «?» по центру.
     private var questionBlock: some View {
-        let blue = Color(red: 0.30, green: 0.55, blue: 0.98)
-        return Image(systemName: "questionmark")
-            .font(.system(size: Metric.lamp * 0.72, weight: .heavy))
+        Image(systemName: "questionmark")
+            .font(.system(size: Metric.lamp * Metric.questionMarkFactor, weight: .heavy))
             .foregroundColor(.white)
             .frame(width: Metric.lamp, height: Metric.lamp)
             .padding(Metric.blockPadding)
             .background(
-                RoundedRectangle(cornerRadius: Metric.corner - 2, style: .continuous)
-                    .fill(blue)
-                    .shadow(color: blue, radius: 6)      // горит, как лампа
-                    .shadow(color: blue.opacity(0.7), radius: 3)
-                    .padding(2)                          // отступ 2px от края корпуса
+                RoundedRectangle(cornerRadius: Metric.corner - Metric.questionInset, style: .continuous)
+                    .fill(Palette.question)
+                    .shadow(color: Palette.question, radius: Metric.questionGlow)      // горит, как лампа
+                    .shadow(color: Palette.question.opacity(0.7), radius: Metric.questionGlowSoft)
+                    .padding(Metric.questionInset)
             )
-            .background(blockBackground)
-            .overlay(blockBorder)
+            .background(corpus)
+            .overlay(border)
     }
 
-    /// Цвет спиннера: жёлтый лампы, но заметно темнее (белый на жёлтом теряется), иначе белый.
-    private func spinnerColor(for which: AgentStatus) -> Color {
-        // Жёлтый лампы (0.98, 0.78, 0.10) × 0.5 → тёмный жёлтый.
-        which == .thinking ? Color(red: 0.49, green: 0.39, blue: 0.05) : .white
-    }
+    // MARK: - Общие элементы корпуса
 
-    private var blockBackground: some View {
+    private var corpus: some View {
         RoundedRectangle(cornerRadius: Metric.corner, style: .continuous)
-            .fill(corpusColor)
+            .fill(hovered ? Palette.corpusHover : Palette.corpus)
     }
 
-    private var blockBorder: some View {
+    private var border: some View {
         RoundedRectangle(cornerRadius: Metric.corner, style: .continuous)
-            .stroke(Color.white.opacity(0.12), lineWidth: 1)
+            .stroke(Palette.border, lineWidth: 1)
     }
 }
 
@@ -127,23 +98,19 @@ struct Spinner: View {
 
     var body: some View {
         Circle()
-            .trim(from: 0, to: 0.28)
-            .stroke(
-                color.opacity(0.92),
-                style: StrokeStyle(lineWidth: 2, lineCap: .round)
-            )
+            .trim(from: 0, to: Metric.spinnerTrim)
+            .stroke(color.opacity(Metric.spinnerOpacity),
+                    style: StrokeStyle(lineWidth: Metric.spinnerLineWidth, lineCap: .round))
             .rotationEffect(.degrees(spin ? 360 : 0))
             .onAppear {
-                withAnimation(.linear(duration: 0.8).repeatForever(autoreverses: false)) {
-                    spin = true
-                }
+                withAnimation(Anim.spin) { spin = true }
             }
     }
 }
 
 /// Корневой вид окна — горизонтальный ряд светофоров по всем активным сессиям.
-/// Размер интринсик (масштаб через scaleEffect не меняет layout) — окно подгоняется
-/// на стороне AppKit по fittingSize × scale.
+/// Размер интринсик (scaleEffect не меняет layout) — окно подгоняется на стороне
+/// AppKit по детерминированному размеру × scale (см. AppController).
 struct RootView: View {
     @ObservedObject var store: SessionStore
     @ObservedObject var ui: UIState
@@ -158,9 +125,9 @@ struct RootView: View {
 
         HStack(alignment: .top, spacing: Metric.rowGap) {
             ForEach(sessions) { session in
-                TrafficLightView(session: session, onHover: { inside in
+                TrafficLightView(session: session) { inside in
                     onHover(inside, session)
-                })
+                }
             }
         }
         .padding(Metric.rowPad)
@@ -169,8 +136,8 @@ struct RootView: View {
         // Прижимаем контент к верхнему-левому углу окна: иначе SwiftUI центрирует
         // немасштабированный бокс и scaleEffect выкидывает его за правый-нижний край.
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .animation(.easeOut(duration: 0.22), value: ui.scale)
-        .animation(.easeOut(duration: 0.16), value: store.sessions.count)
+        .animation(Anim.scale, value: ui.scale)
+        .animation(Anim.sessions, value: store.sessions.count)
         .contentShape(Rectangle())
         .onTapGesture(count: 2) {
             ui.cycleScale()

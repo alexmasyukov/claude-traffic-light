@@ -1,19 +1,11 @@
-import SwiftUI
+import Foundation
 import Combine
 
 /// Состояние агента в одной сессии Claude Code.
 enum AgentStatus: String {
-    case idle      // 🟢 зелёный — агент закончил, ждёт пользователя
-    case thinking  // 🟡 жёлтый — думает / готовится / генерирует ответ
-    case working   // 🔴 красный — выполняет инструмент
-
-    var color: Color {
-        switch self {
-        case .idle:     return Color(red: 0.20, green: 0.80, blue: 0.35)
-        case .thinking: return Color(red: 0.98, green: 0.78, blue: 0.10)
-        case .working:  return Color(red: 0.95, green: 0.25, blue: 0.22)
-        }
-    }
+    case idle      // 🟢 агент закончил, ждёт пользователя
+    case thinking  // 🟡 думает / готовится / генерирует ответ
+    case working   // 🔴 выполняет инструмент
 }
 
 /// Событие хука Claude Code.
@@ -45,27 +37,9 @@ final class SessionState: ObservableObject, Identifiable {
     func refreshBranch() {
         guard let cwd else { return }
         DispatchQueue.global(qos: .utility).async {
-            let branch = SessionState.gitBranch(cwd)
+            let branch = Git.branch(in: cwd)
             Task { @MainActor in self.branch = branch }
         }
-    }
-
-    private static func gitBranch(_ cwd: String) -> String? {
-        let p = Process()
-        p.executableURL = URL(fileURLWithPath: "/usr/bin/git")
-        p.arguments = ["-C", cwd, "rev-parse", "--abbrev-ref", "HEAD"]
-        let pipe = Pipe()
-        p.standardOutput = pipe
-        p.standardError = FileHandle.nullDevice
-        do {
-            try p.run()
-            p.waitUntilExit()
-            guard p.terminationStatus == 0 else { return nil }
-            let data = pipe.fileHandleForReading.readDataToEndOfFile()
-            let name = String(data: data, encoding: .utf8)?
-                .trimmingCharacters(in: .whitespacesAndNewlines)
-            return (name?.isEmpty == false) ? name : nil
-        } catch { return nil }
     }
 
     /// Применить событие хука к состоянию.
@@ -81,60 +55,28 @@ final class SessionState: ObservableObject, Identifiable {
             status = .thinking
         case .notification:
             awaitingQuestion = true
-        case .stop:
-            status = .idle
-            awaitingQuestion = false
-        case .sessionStart:
-            status = .idle
-            awaitingQuestion = false
-        case .sessionEnd:
+        case .stop, .sessionStart, .sessionEnd:
             status = .idle
             awaitingQuestion = false
         }
     }
 }
 
-/// Общий масштаб ряда светофоров: двойной клик +10% до +50%, затем сброс. Персист в UserDefaults.
-@MainActor
-final class UIState: ObservableObject {
-    @Published var scale: Double
-
-    private let key = "uiScale"
-
-    init() {
-        let saved = UserDefaults.standard.double(forKey: key)
-        scale = (saved >= 1.0 && saved <= 1.5) ? saved : 1.0
-    }
-
-    func cycleScale() {
-        scale = scale >= 1.49 ? 1.0 : (scale + 0.1)
-        UserDefaults.standard.set(scale, forKey: key)
-    }
-}
-
-/// Хранилище всех активных сессий. Для MVP показываем последнюю активную.
+/// Хранилище активных сессий — одна на каждый светофор в ряду.
 @MainActor
 final class SessionStore: ObservableObject {
     @Published private(set) var sessions: [SessionState] = []
-    @Published var activeID: String?
 
     private var index: [String: SessionState] = [:]
 
-    var active: SessionState? {
-        guard let id = activeID else { return sessions.last }
-        return index[id] ?? sessions.last
-    }
-
     func handle(sessionID: String, event: HookEvent, cwd: String?) {
-        let session: SessionState
-        if let existing = index[sessionID] {
-            session = existing
-        } else {
-            let label = cwd.map { ($0 as NSString).lastPathComponent } ?? "session"
-            session = SessionState(id: sessionID, label: label)
-            index[sessionID] = session
-            sessions.append(session)
+        if event == .sessionEnd {
+            guard index.removeValue(forKey: sessionID) != nil else { return }
+            sessions.removeAll { $0.id == sessionID }
+            return
         }
+
+        let session = index[sessionID] ?? register(sessionID, cwd: cwd)
         if let cwd {
             if session.label == "session" {
                 session.label = (cwd as NSString).lastPathComponent
@@ -142,15 +84,30 @@ final class SessionStore: ObservableObject {
             if session.cwd != cwd { session.cwd = cwd }
             session.refreshBranch()
         }
-
-        if event == .sessionEnd {
-            index[sessionID] = nil
-            sessions.removeAll { $0.id == sessionID }
-            if activeID == sessionID { activeID = sessions.last?.id }
-            return
-        }
-
         session.apply(event)
-        activeID = sessionID   // последняя активность = активный светофор
+    }
+
+    private func register(_ sessionID: String, cwd: String?) -> SessionState {
+        let label = cwd.map { ($0 as NSString).lastPathComponent } ?? "session"
+        let session = SessionState(id: sessionID, label: label)
+        index[sessionID] = session
+        sessions.append(session)
+        return session
+    }
+}
+
+/// Общий масштаб ряда: двойной клик +10% до +50%, затем сброс. Персист в UserDefaults.
+@MainActor
+final class UIState: ObservableObject {
+    @Published var scale: Double
+
+    init() {
+        let saved = UserDefaults.standard.double(forKey: Config.Key.uiScale)
+        scale = (saved >= Config.scaleMin && saved <= Config.scaleMax) ? saved : Config.scaleMin
+    }
+
+    func cycleScale() {
+        scale = scale >= Config.scaleMax - 0.01 ? Config.scaleMin : scale + Config.scaleStep
+        UserDefaults.standard.set(scale, forKey: Config.Key.uiScale)
     }
 }

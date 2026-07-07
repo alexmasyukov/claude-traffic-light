@@ -1,172 +1,127 @@
 import SwiftUI
 import AppKit
 
-let kPort: UInt16 = 47615
-
-/// Оверлей-окно: не забирает фокус (иначе при клике появляется рамка/белая линия),
-/// но остаётся перетаскиваемым за фон.
-final class OverlayWindow: NSWindow {
-    override var canBecomeKey: Bool { false }
-    override var canBecomeMain: Bool { false }
-}
-
-/// Hosting-view с контекстным меню по правому клику (пункт «Выход»).
-final class MenuHostingView: NSHostingView<RootView> {
-    required init(rootView: RootView) { super.init(rootView: rootView) }
-    @available(*, unavailable)
-    required init?(coder: NSCoder) { fatalError() }
-
-    override func rightMouseDown(with event: NSEvent) {
-        let menu = NSMenu()
-        let quit = NSMenuItem(title: "Выход",
-                              action: #selector(NSApplication.terminate(_:)),
-                              keyEquivalent: "")
-        quit.target = NSApp
-        menu.addItem(quit)
-        NSMenu.popUpContextMenu(menu, with: event, for: self)
-    }
-}
-
 @MainActor
 final class AppController: NSObject, NSApplicationDelegate {
-    let store = SessionStore()
-    let ui = UIState()
-    var window: NSWindow!
-    var server: TrafficServer?
-    private var tooltip: TooltipPanel?
+    private let store = SessionStore()
+    private let ui = UIState()
+    private var window: OverlayWindow!
     private var hosting: MenuHostingView!
-
-    private let originKey = "windowOrigin"   // ключ UserDefaults для позиции
+    private var server: TrafficServer?
+    private var tooltip: TooltipPanel?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        // Плавающее безрамочное окно поверх всех приложений и на всех Spaces.
-        // Размер окна подгоняется под ряд светофоров (см. scheduleResize).
-        let content = MenuHostingView(
-            rootView: RootView(
-                store: store,
-                ui: ui,
-                onHover: { [weak self] inside, session in
-                    self?.handleHover(inside, session: session)
-                },
-                onScaleChanged: { [weak self] in
-                    self?.scheduleResize()
-                }
-            )
-        )
-        self.hosting = content
-        content.frame = NSRect(x: 0, y: 0, width: 60, height: 100)
+        hosting = makeHosting()
+        hosting.frame = NSRect(x: 0, y: 0, width: 60, height: 100)   // стартовый; подгонится в scheduleResize
 
-        let window = OverlayWindow(
-            contentRect: content.frame,
-            styleMask: [.borderless],
-            backing: .buffered,
-            defer: false
-        )
-        window.contentView = content
-        window.isOpaque = false
-        window.backgroundColor = .clear
-        window.hasShadow = false
-        window.level = .statusBar                       // выше обычных окон
-        window.collectionBehavior = [.canJoinAllSpaces, .stationary, .fullScreenAuxiliary]
-        window.isMovableByWindowBackground = true       // таскать мышью
-        window.ignoresMouseEvents = false
-
-        // Восстанавливаем сохранённую позицию, иначе — правый верхний угол.
-        if let saved = UserDefaults.standard.string(forKey: originKey) {
-            window.setFrameOrigin(NSPointFromString(saved))
-        } else if let screen = NSScreen.main {
-            let vf = screen.visibleFrame
-            window.setFrameOrigin(NSPoint(x: vf.maxX - 118, y: vf.maxY - 150))
-        }
+        window = OverlayWindow.make(content: hosting)
+        restorePosition()
+        observePosition()
         window.orderFrontRegardless()
-        self.window = window
 
-        // Сохраняем позицию при каждом перемещении окна.
-        let key = originKey
-        NotificationCenter.default.addObserver(
-            forName: NSWindow.didMoveNotification, object: window, queue: .main
-        ) { [weak window] _ in
-            guard let window else { return }
-            UserDefaults.standard.set(NSStringFromPoint(window.frame.origin), forKey: key)
-        }
+        startServer()
+        tooltip = TooltipPanel()
+        scheduleResize()   // стартовый размер под заглушку
+    }
 
-        // HTTP-сервер: хук → обновление состояния.
-        server = TrafficServer(port: kPort) { [weak self] type, sessionID, cwd in
-            guard let self else { return }
-            guard let event = HookEvent(rawValue: type) else { return }
+    // MARK: - Сборка
+
+    private func makeHosting() -> MenuHostingView {
+        MenuHostingView(rootView: RootView(
+            store: store,
+            ui: ui,
+            onHover: { [weak self] inside, session in self?.handleHover(inside, session: session) },
+            onScaleChanged: { [weak self] in self?.scheduleResize() }
+        ))
+    }
+
+    private func startServer() {
+        server = TrafficServer(port: Config.port) { [weak self] type, sessionID, cwd in
+            guard let self, let event = HookEvent(rawValue: type) else { return }
             DispatchQueue.main.async {
                 self.store.handle(sessionID: sessionID, event: event, cwd: cwd)
                 self.scheduleResize()
             }
         }
         if server == nil {
-            FileHandle.standardError.write(Data("TrafficLight: не удалось занять порт \(kPort)\n".utf8))
+            FileHandle.standardError.write(Data("TrafficLight: не удалось занять порт \(Config.port)\n".utf8))
         }
         server?.start()
-
-        tooltip = TooltipPanel()
-        scheduleResize()   // стартовый размер под заглушку
     }
 
-    /// Детерминированный размер ряда светофоров (без масштаба) — из констант Metric.
-    private func baseRowSize() -> CGSize {
-        let sessions = store.sessions
-        let count = max(1, sessions.count)
-        var width: CGFloat = 0
-        if sessions.isEmpty {
-            width = Metric.blockWidth
-        } else {
-            for s in sessions {
-                width += Metric.blockWidth
-                if s.awaitingQuestion { width += Metric.questionGap + Metric.blockWidth }
-            }
+    // MARK: - Позиция окна (персист в UserDefaults)
+
+    private func restorePosition() {
+        if let saved = UserDefaults.standard.string(forKey: Config.Key.windowOrigin) {
+            window.setFrameOrigin(NSPointFromString(saved))
+        } else if let vf = NSScreen.main?.visibleFrame {
+            window.setFrameOrigin(NSPoint(x: vf.maxX - 118, y: vf.maxY - 150))  // правый верх
         }
-        width += Metric.rowGap * CGFloat(count - 1) + 2 * Metric.rowPad
-        let height = Metric.blockHeight + 2 * Metric.rowPad
-        return CGSize(width: width, height: height)
     }
 
-    /// Подгоняем окно под ряд светофоров с учётом масштаба.
-    private func scheduleResize() {
-        let base = baseRowSize()
-        let s = CGFloat(ui.scale)
-        resizeToContent(CGSize(width: base.width * s, height: base.height * s))
+    private func observePosition() {
+        NotificationCenter.default.addObserver(
+            forName: NSWindow.didMoveNotification, object: window, queue: .main
+        ) { [weak window] _ in
+            guard let window else { return }
+            UserDefaults.standard.set(NSStringFromPoint(window.frame.origin), forKey: Config.Key.windowOrigin)
+        }
     }
 
-    /// Показ/скрытие всплывающей подсказки при наведении на конкретный светофор.
+    // MARK: - Всплывающая подсказка
+
     private func handleHover(_ inside: Bool, session: SessionState?) {
         guard let tooltip else { return }
         if inside, let session {
-            // Позиционируем над курсором — корректно для любого светофора в ряду.
-            let mouse = NSEvent.mouseLocation
-            tooltip.show(folder: session.label, branch: session.branch, atCursor: mouse)
+            // Над курсором — корректно для любого светофора в ряду.
+            tooltip.show(folder: session.label, branch: session.branch, atCursor: NSEvent.mouseLocation)
         } else {
             tooltip.hide()
         }
     }
 
-    /// Подгоняем размер окна под ряд светофоров, удерживая верхний-левый угол на месте.
+    // MARK: - Подгонка размера окна
+
+    /// Детерминированный размер ряда светофоров (без масштаба) — из констант Metric.
+    private func baseRowSize() -> CGSize {
+        let sessions = store.sessions
+        var width = sessions.isEmpty ? Metric.blockWidth : 0
+        for session in sessions {
+            width += Metric.blockWidth
+            if session.awaitingQuestion { width += Metric.questionGap + Metric.blockWidth }
+        }
+        width += Metric.rowGap * CGFloat(max(1, sessions.count) - 1) + 2 * Metric.rowPad
+        return CGSize(width: width, height: Metric.blockHeight + 2 * Metric.rowPad)
+    }
+
+    private func scheduleResize() {
+        let base = baseRowSize()
+        let scale = CGFloat(ui.scale)
+        resizeToContent(CGSize(width: base.width * scale, height: base.height * scale))
+    }
+
+    /// Подгоняем окно под ряд светофоров, удерживая верхний-левый угол на месте.
     private func resizeToContent(_ rawSize: CGSize) {
         guard let window, rawSize.width > 1, rawSize.height > 1 else { return }
         // +1px запас, чтобы субпиксельные расхождения при анимации не подрезали край.
         let size = CGSize(width: ceil(rawSize.width) + 1, height: ceil(rawSize.height) + 1)
-        let f = window.frame
-        if abs(f.width - size.width) < 0.5 && abs(f.height - size.height) < 0.5 { return }
-        let top = f.maxY                                   // фиксируем верхний край
-        var origin = NSPoint(x: f.origin.x, y: top - size.height)
+        let frame = window.frame
+        if abs(frame.width - size.width) < 0.5 && abs(frame.height - size.height) < 0.5 { return }
+
+        var origin = NSPoint(x: frame.origin.x, y: frame.maxY - size.height)  // фиксируем верхний край
         // Не даём окну уехать за край экрана — иначе крайние светофоры «обрезаются».
         if let vf = (window.screen ?? NSScreen.main)?.visibleFrame {
-            if origin.x + size.width > vf.maxX { origin.x = vf.maxX - size.width }
-            if origin.x < vf.minX { origin.x = vf.minX }
-            if origin.y < vf.minY { origin.y = vf.minY }
+            origin.x = min(origin.x, vf.maxX - size.width)
+            origin.x = max(origin.x, vf.minX)
+            origin.y = max(origin.y, vf.minY)
         }
-        let newFrame = NSRect(origin: origin, size: size)
-        // Анимируем окно синхронно с scaleEffect (та же длительность), чтобы при
+
+        // Анимируем окно синхронно со scaleEffect (та же длительность), чтобы при
         // уменьшении масштаба окно не «обгоняло» контент и не резало его.
         NSAnimationContext.runAnimationGroup { ctx in
-            ctx.duration = 0.22
+            ctx.duration = Anim.windowDuration
             ctx.timingFunction = CAMediaTimingFunction(name: .easeOut)
-            window.animator().setFrame(newFrame, display: true)
+            window.animator().setFrame(NSRect(origin: origin, size: size), display: true)
         }
     }
 }

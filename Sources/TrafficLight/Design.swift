@@ -1,0 +1,88 @@
+import SwiftUI
+
+/// Геометрия ряда светофоров (в 2 раза меньше исходной задумки).
+enum Metric {
+    static let lamp: CGFloat = 13
+    static let lampSpacing: CGFloat = 4
+    static let blockPadding: CGFloat = 5
+    static let corner: CGFloat = 7
+
+    static let rowGap: CGFloat = 12          // отступ между светофорами
+    static let rowPad: CGFloat = 8           // поля ряда под свечение
+    static let questionGap: CGFloat = 4      // отступ доп-секции от светофора
+    static let questionInset: CGFloat = 2    // отступ синей заливки от края корпуса
+
+    static let spinnerFactor: CGFloat = 0.62 // диаметр спиннера от диаметра лампы
+    static let spinnerTrim: CGFloat = 0.28
+    static let spinnerLineWidth: CGFloat = 2
+    static let questionMarkFactor: CGFloat = 0.72
+
+    static let lampGlow: CGFloat = 5
+    static let questionGlow: CGFloat = 6
+    static let questionGlowSoft: CGFloat = 3
+
+    static let lampInactiveOpacity: Double = 0.16
+    static let lampActiveStroke: Double = 0.35
+    static let spinnerOpacity: Double = 0.92
+
+    /// Высота блока светофора.
+    static var blockHeight: CGFloat { 3 * lamp + 2 * lampSpacing + 2 * blockPadding }
+
+    /// Ширина одного блока (светофор или доп-секция).
+    static var blockWidth: CGFloat { lamp + 2 * blockPadding }
+}
+
+/// Цвета приложения.
+enum Palette {
+    static let lampIdle     = Color(red: 0.20, green: 0.80, blue: 0.35)  // 🟢
+    static let lampThinking = Color(red: 0.98, green: 0.78, blue: 0.10)  // 🟡
+    static let lampWorking  = Color(red: 0.95, green: 0.25, blue: 0.22)  // 🔴
+
+    static let corpus      = Color(red: 0.07, green: 0.07, blue: 0.08)
+    static let corpusHover = Color(red: 0.17, green: 0.17, blue: 0.19)   // ярче при наведении
+    static let border      = Color.white.opacity(0.12)
+
+    static let question       = Color(red: 0.30, green: 0.55, blue: 0.98)
+    /// Спиннер на жёлтой лампе: жёлтый лампы × 0.5 (белый на жёлтом теряется).
+    static let spinnerOnYellow = Color(red: 0.49, green: 0.39, blue: 0.05)
+
+    static let tooltipBackground = Color.black.opacity(0.88)
+    static let tooltipBorder     = Color.white.opacity(0.14)
+
+    static func lamp(for status: AgentStatus) -> Color {
+        switch status {
+        case .idle:     return lampIdle
+        case .thinking: return lampThinking
+        case .working:  return lampWorking
+        }
+    }
+
+    static func spinner(for status: AgentStatus) -> Color {
+        status == .thinking ? spinnerOnYellow : .white
+    }
+}
+
+/// Длительности и кривые анимаций.
+enum Anim {
+    static let status   = Animation.easeOut(duration: 0.12)
+    static let question = Animation.easeOut(duration: 0.12)
+    static let hover    = Animation.easeOut(duration: 0.15)
+    static let scale    = Animation.easeOut(duration: 0.22)
+    static let sessions = Animation.easeOut(duration: 0.16)
+    static let spin     = Animation.linear(duration: 0.8).repeatForever(autoreverses: false)
+    /// Длительность анимации кадра окна — совпадает со scale, чтобы окно не резало контент.
+    static let windowDuration: Double = 0.22
+}
+
+/// Прочие константы приложения.
+enum Config {
+    static let port: UInt16 = 47615
+    static let scaleMin: Double = 1.0
+    static let scaleMax: Double = 1.5
+    static let scaleStep: Double = 0.1
+
+    enum Key {
+        static let windowOrigin = "windowOrigin"
+        static let uiScale = "uiScale"
+    }
+}

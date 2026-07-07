@@ -70,11 +70,11 @@ struct TooltipView: View {
             .padding(.vertical, 7)
             .background(
                 RoundedRectangle(cornerRadius: 9, style: .continuous)
-                    .fill(Color.black.opacity(0.88))
+                    .fill(Palette.tooltipBackground)
             )
             .overlay(
                 RoundedRectangle(cornerRadius: 9, style: .continuous)
-                    .stroke(Color.white.opacity(0.14), lineWidth: 1)
+                    .stroke(Palette.tooltipBorder, lineWidth: 1)
             )
             .padding(4)
     }

@@ -132,21 +132,14 @@ struct Spinner: View {
     }
 }
 
-/// Ключ для измерения базового (немасштабированного) размера ряда светофоров.
-struct SizeKey: PreferenceKey {
-    static let defaultValue: CGSize = .zero
-    static func reduce(value: inout CGSize, nextValue: () -> CGSize) { value = nextValue() }
-}
-
 /// Корневой вид окна — горизонтальный ряд светофоров по всем активным сессиям.
+/// Размер интринсик (масштаб через scaleEffect не меняет layout) — окно подгоняется
+/// на стороне AppKit по fittingSize × scale.
 struct RootView: View {
     @ObservedObject var store: SessionStore
+    @ObservedObject var ui: UIState
     var onHover: (Bool, SessionState?) -> Void = { _, _ in }
-    var onSizeChange: (CGSize) -> Void = { _ in }
-
-    // Общий масштаб всего ряда: двойной клик +10% до +50%, затем сброс. Хранится в UserDefaults.
-    @AppStorage("uiScale") private var uiScale: Double = 1.0
-    @State private var baseSize: CGSize = .zero
+    var onScaleChanged: () -> Void = {}
 
     private let gap: CGFloat = 12          // отступ между светофорами
     private let pad: CGFloat = 8           // поля под свечение ламп
@@ -166,28 +159,13 @@ struct RootView: View {
         }
         .padding(pad)
         .fixedSize()
-        .background(
-            GeometryReader { g in
-                Color.clear.preference(key: SizeKey.self, value: g.size)
-            }
-        )
-        .scaleEffect(uiScale, anchor: .topLeading)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .animation(.spring(response: 0.28, dampingFraction: 0.7), value: uiScale)
+        .scaleEffect(ui.scale, anchor: .topLeading)
+        .animation(.spring(response: 0.28, dampingFraction: 0.7), value: ui.scale)
         .animation(.easeOut(duration: 0.16), value: store.sessions.count)
         .contentShape(Rectangle())
         .onTapGesture(count: 2) {
-            uiScale = uiScale >= 1.49 ? 1.0 : (uiScale + 0.1)   // 1.0 → 1.1 → … → 1.5 → 1.0
+            ui.cycleScale()
+            onScaleChanged()
         }
-        .onPreferenceChange(SizeKey.self) { size in
-            baseSize = size
-            report()
-        }
-        .onChange(of: uiScale) { _ in report() }
-    }
-
-    private func report() {
-        guard baseSize.width > 0 else { return }
-        onSizeChange(CGSize(width: baseSize.width * uiScale, height: baseSize.height * uiScale))
     }
 }

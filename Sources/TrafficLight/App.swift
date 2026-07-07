@@ -13,26 +13,30 @@ final class OverlayWindow: NSWindow {
 @MainActor
 final class AppController: NSObject, NSApplicationDelegate {
     let store = SessionStore()
+    let ui = UIState()
     var window: NSWindow!
     var server: TrafficServer?
     private var tooltip: TooltipPanel?
+    private var hosting: NSHostingView<RootView>!
 
     private let originKey = "windowOrigin"   // ключ UserDefaults для позиции
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         // Плавающее безрамочное окно поверх всех приложений и на всех Spaces.
-        // Размер окна подгоняется под ряд светофоров (см. onSizeChange).
+        // Размер окна подгоняется под ряд светофоров (см. scheduleResize).
         let content = NSHostingView(
             rootView: RootView(
                 store: store,
+                ui: ui,
                 onHover: { [weak self] inside, session in
                     self?.handleHover(inside, session: session)
                 },
-                onSizeChange: { [weak self] size in
-                    self?.resizeToContent(size)
+                onScaleChanged: { [weak self] in
+                    self?.scheduleResize()
                 }
             )
         )
+        self.hosting = content
         content.frame = NSRect(x: 0, y: 0, width: 60, height: 100)
 
         let window = OverlayWindow(
@@ -75,6 +79,7 @@ final class AppController: NSObject, NSApplicationDelegate {
             guard let event = HookEvent(rawValue: type) else { return }
             DispatchQueue.main.async {
                 self.store.handle(sessionID: sessionID, event: event, cwd: cwd)
+                self.scheduleResize()
             }
         }
         if server == nil {
@@ -83,6 +88,18 @@ final class AppController: NSObject, NSApplicationDelegate {
         server?.start()
 
         tooltip = TooltipPanel()
+        scheduleResize()   // стартовый размер под заглушку
+    }
+
+    /// Подгоняем окно под контент: считаем размер на стороне AppKit после перелэйаута.
+    private func scheduleResize() {
+        DispatchQueue.main.async { [weak self] in
+            guard let self, let hosting = self.hosting else { return }
+            hosting.layoutSubtreeIfNeeded()
+            let base = hosting.fittingSize                 // без учёта scaleEffect
+            let s = CGFloat(self.ui.scale)
+            self.resizeToContent(CGSize(width: base.width * s, height: base.height * s))
+        }
     }
 
     /// Показ/скрытие всплывающей подсказки при наведении на конкретный светофор.
@@ -103,7 +120,13 @@ final class AppController: NSObject, NSApplicationDelegate {
         let f = window.frame
         if abs(f.width - size.width) < 0.5 && abs(f.height - size.height) < 0.5 { return }
         let top = f.maxY                                   // фиксируем верхний край
-        let origin = NSPoint(x: f.origin.x, y: top - size.height)
+        var origin = NSPoint(x: f.origin.x, y: top - size.height)
+        // Не даём окну уехать за правый/нижний край экрана — иначе крайние светофоры «обрезаются».
+        if let vf = (window.screen ?? NSScreen.main)?.visibleFrame {
+            if origin.x + size.width > vf.maxX { origin.x = vf.maxX - size.width }
+            if origin.x < vf.minX { origin.x = vf.minX }
+            if origin.y < vf.minY { origin.y = vf.minY }
+        }
         window.setFrame(NSRect(origin: origin, size: size), display: true)
     }
 }

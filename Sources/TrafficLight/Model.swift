@@ -94,6 +94,24 @@ final class SessionState: ObservableObject, Identifiable {
     }
 }
 
+/// Общий масштаб ряда светофоров: двойной клик +10% до +50%, затем сброс. Персист в UserDefaults.
+@MainActor
+final class UIState: ObservableObject {
+    @Published var scale: Double
+
+    private let key = "uiScale"
+
+    init() {
+        let saved = UserDefaults.standard.double(forKey: key)
+        scale = (saved >= 1.0 && saved <= 1.5) ? saved : 1.0
+    }
+
+    func cycleScale() {
+        scale = scale >= 1.49 ? 1.0 : (scale + 0.1)
+        UserDefaults.standard.set(scale, forKey: key)
+    }
+}
+
 /// Хранилище всех активных сессий. Для MVP показываем последнюю активную.
 @MainActor
 final class SessionStore: ObservableObject {

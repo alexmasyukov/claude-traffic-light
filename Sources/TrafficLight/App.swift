@@ -8,13 +8,19 @@ final class AppController: NSObject, NSApplicationDelegate {
     let store = SessionStore()
     var window: NSWindow!
     var server: TrafficServer?
+    private var tooltip: TooltipPanel?
 
     private let originKey = "windowOrigin"   // ключ UserDefaults для позиции
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         // Плавающее безрамочное окно поверх всех приложений и на всех Spaces.
-        let content = NSHostingView(rootView: RootView(store: store))
-        content.frame = NSRect(x: 0, y: 0, width: 92, height: 78)
+        // Окно с запасом — чтобы hover-увеличение на 20% не обрезалось.
+        let content = NSHostingView(
+            rootView: RootView(store: store, onHover: { [weak self] inside in
+                self?.handleHover(inside)
+            })
+        )
+        content.frame = NSRect(x: 0, y: 0, width: 100, height: 96)
 
         let window = NSWindow(
             contentRect: content.frame,
@@ -62,6 +68,18 @@ final class AppController: NSObject, NSApplicationDelegate {
             FileHandle.standardError.write(Data("TrafficLight: не удалось занять порт \(kPort)\n".utf8))
         }
         server?.start()
+
+        tooltip = TooltipPanel()
+    }
+
+    /// Показ/скрытие всплывающей подсказки при наведении на светофор.
+    private func handleHover(_ inside: Bool) {
+        guard let tooltip, let window else { return }
+        if inside, let text = store.active?.tooltip {
+            tooltip.show(text: text, below: window.frame)
+        } else {
+            tooltip.hide()
+        }
     }
 }
 

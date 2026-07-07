@@ -33,10 +33,45 @@ final class SessionState: ObservableObject, Identifiable {
     @Published var status: AgentStatus = .idle
     @Published var awaitingQuestion = false
     @Published var label: String   // короткое имя (папка проекта)
+    @Published var branch: String? // git-ветка в cwd
+    var cwd: String?
 
     init(id: String, label: String) {
         self.id = id
         self.label = label
+    }
+
+    /// Текст для всплывающей подсказки: «папка (ветка)».
+    var tooltip: String {
+        if let branch, !branch.isEmpty { return "\(label) · \(branch)" }
+        return label
+    }
+
+    /// Асинхронно определяем git-ветку в cwd, не блокируя main.
+    func refreshBranch() {
+        guard let cwd else { return }
+        DispatchQueue.global(qos: .utility).async {
+            let branch = SessionState.gitBranch(cwd)
+            Task { @MainActor in self.branch = branch }
+        }
+    }
+
+    private static func gitBranch(_ cwd: String) -> String? {
+        let p = Process()
+        p.executableURL = URL(fileURLWithPath: "/usr/bin/git")
+        p.arguments = ["-C", cwd, "rev-parse", "--abbrev-ref", "HEAD"]
+        let pipe = Pipe()
+        p.standardOutput = pipe
+        p.standardError = FileHandle.nullDevice
+        do {
+            try p.run()
+            p.waitUntilExit()
+            guard p.terminationStatus == 0 else { return nil }
+            let data = pipe.fileHandleForReading.readDataToEndOfFile()
+            let name = String(data: data, encoding: .utf8)?
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            return (name?.isEmpty == false) ? name : nil
+        } catch { return nil }
     }
 
     /// Применить событие хука к состоянию.
@@ -88,8 +123,12 @@ final class SessionStore: ObservableObject {
             index[sessionID] = session
             sessions.append(session)
         }
-        if let cwd, session.label == "session" {
-            session.label = (cwd as NSString).lastPathComponent
+        if let cwd {
+            if session.label == "session" {
+                session.label = (cwd as NSString).lastPathComponent
+            }
+            if session.cwd != cwd { session.cwd = cwd }
+            session.refreshBranch()
         }
 
         if event == .sessionEnd {

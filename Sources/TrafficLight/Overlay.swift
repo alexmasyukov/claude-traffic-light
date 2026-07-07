@@ -88,9 +88,10 @@ struct TrafficLightView: View {
         .overlay(blockBorder)
     }
 
-    /// Цвет спиннера: тёмно-жёлтый на жёлтой лампе (белый теряется), иначе белый.
+    /// Цвет спиннера: жёлтый лампы, но заметно темнее (белый на жёлтом теряется), иначе белый.
     private func spinnerColor(for which: AgentStatus) -> Color {
-        which == .thinking ? Color(red: 0.42, green: 0.30, blue: 0.0) : .white
+        // Жёлтый лампы (0.98, 0.78, 0.10) × 0.5 → тёмный жёлтый.
+        which == .thinking ? Color(red: 0.49, green: 0.39, blue: 0.05) : .white
     }
 
     private var blockBackground: some View {

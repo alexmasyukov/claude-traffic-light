@@ -117,14 +117,10 @@ struct RootView: View {
     var onHover: (Bool, SessionState?) -> Void = { _, _ in }
     var onScaleChanged: () -> Void = {}
 
-    /// Заглушка, когда ещё нет ни одной сессии — чтобы окно не было пустым.
-    private static let placeholder = SessionState(id: "—", label: "idle")
-
     var body: some View {
-        let sessions = store.sessions.isEmpty ? [Self.placeholder] : store.sessions
-
+        // Нет сессий — ряд пустой (окно прячет AppController), само приложение живёт.
         HStack(alignment: .top, spacing: Metric.rowGap) {
-            ForEach(sessions) { session in
+            ForEach(store.sessions) { session in
                 TrafficLightView(session: session) { inside in
                     onHover(inside, session)
                 }

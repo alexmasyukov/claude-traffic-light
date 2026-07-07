@@ -17,11 +17,10 @@ final class AppController: NSObject, NSApplicationDelegate {
         window = OverlayWindow.make(content: hosting)
         restorePosition()
         observePosition()
-        window.orderFrontRegardless()
 
         startServer()
         tooltip = TooltipPanel()
-        scheduleResize()   // стартовый размер под заглушку
+        scheduleResize()   // нет сессий на старте → окно остаётся скрытым
     }
 
     // MARK: - Сборка
@@ -85,16 +84,24 @@ final class AppController: NSObject, NSApplicationDelegate {
     /// Детерминированный размер ряда светофоров (без масштаба) — из констант Metric.
     private func baseRowSize() -> CGSize {
         let sessions = store.sessions
-        var width = sessions.isEmpty ? Metric.blockWidth : 0
+        var width: CGFloat = 0
         for session in sessions {
             width += Metric.blockWidth
             if session.awaitingQuestion { width += Metric.questionGap + Metric.blockWidth }
         }
-        width += Metric.rowGap * CGFloat(max(1, sessions.count) - 1) + 2 * Metric.rowPad
+        width += Metric.rowGap * CGFloat(sessions.count - 1) + 2 * Metric.rowPad
         return CGSize(width: width, height: Metric.blockHeight + 2 * Metric.rowPad)
     }
 
     private func scheduleResize() {
+        guard let window else { return }
+        // Нет сессий — прячем окно (приложение продолжает жить и слушать порт).
+        if store.sessions.isEmpty {
+            tooltip?.hide()
+            if window.isVisible { window.orderOut(nil) }
+            return
+        }
+        if !window.isVisible { window.orderFrontRegardless() }
         let base = baseRowSize()
         let scale = CGFloat(ui.scale)
         resizeToContent(CGSize(width: base.width * scale, height: base.height * scale))

@@ -7,9 +7,6 @@ enum Metric {
     static let blockPadding: CGFloat = 5
     static let corner: CGFloat = 7
 
-    /// Размер холста-окна: с запасом полей под hover-увеличение и свечение.
-    static let canvas: CGFloat = 140
-
     /// Высота блока светофора.
     static var blockHeight: CGFloat {
         3 * lamp + 2 * lampSpacing + 2 * blockPadding
@@ -23,8 +20,6 @@ struct TrafficLightView: View {
     var onHover: (Bool) -> Void = { _ in }
 
     @State private var hovered = false
-    // Пользовательский масштаб: двойной клик +10% до +50%, затем сброс. Хранится в UserDefaults.
-    @AppStorage("uiScale") private var uiScale: Double = 1.0
 
     var body: some View {
         HStack(alignment: .top, spacing: 0) {          // «?» на уровне верхней (красной) лампы
@@ -35,20 +30,13 @@ struct TrafficLightView: View {
                     .transition(.opacity)
             }
         }
-        .padding(5)
-        .scaleEffect(uiScale)
         .animation(.easeOut(duration: 0.12), value: session.status)
         .animation(.easeOut(duration: 0.12), value: session.awaitingQuestion)
         .animation(.easeOut(duration: 0.15), value: hovered)
-        .animation(.spring(response: 0.28, dampingFraction: 0.7), value: uiScale)
         .onHover { inside in
             hovered = inside
             onHover(inside)
             if inside { NSCursor.pointingHand.push() } else { NSCursor.pop() }
-        }
-        .onTapGesture(count: 2) {
-            // 1.0 → 1.1 → … → 1.5 → 1.0
-            uiScale = uiScale >= 1.49 ? 1.0 : (uiScale + 0.1)
         }
     }
 
@@ -144,22 +132,62 @@ struct Spinner: View {
     }
 }
 
-/// Корневой вид окна — для MVP показываем активную сессию.
+/// Ключ для измерения базового (немасштабированного) размера ряда светофоров.
+struct SizeKey: PreferenceKey {
+    static let defaultValue: CGSize = .zero
+    static func reduce(value: inout CGSize, nextValue: () -> CGSize) { value = nextValue() }
+}
+
+/// Корневой вид окна — горизонтальный ряд светофоров по всем активным сессиям.
 struct RootView: View {
     @ObservedObject var store: SessionStore
-    var onHover: (Bool) -> Void = { _ in }
+    var onHover: (Bool, SessionState?) -> Void = { _, _ in }
+    var onSizeChange: (CGSize) -> Void = { _ in }
+
+    // Общий масштаб всего ряда: двойной клик +10% до +50%, затем сброс. Хранится в UserDefaults.
+    @AppStorage("uiScale") private var uiScale: Double = 1.0
+    @State private var baseSize: CGSize = .zero
+
+    private let gap: CGFloat = 12          // отступ между светофорами
+    private let pad: CGFloat = 8           // поля под свечение ламп
+
+    /// Заглушка, когда ещё нет ни одной сессии — чтобы окно не было пустым.
+    private static let placeholder = SessionState(id: "—", label: "idle")
 
     var body: some View {
-        // Фиксированный прозрачный холст: светофор строго по центру,
-        // вокруг — поля, чтобы hover-увеличение и свечение не подрезались краями окна.
-        ZStack {
-            Color.clear
-            if let session = store.active {
-                TrafficLightView(session: session, onHover: onHover)
-            } else {
-                TrafficLightView(session: SessionState(id: "—", label: "idle"), onHover: onHover)
+        let sessions = store.sessions.isEmpty ? [Self.placeholder] : store.sessions
+
+        HStack(alignment: .top, spacing: gap) {
+            ForEach(sessions) { session in
+                TrafficLightView(session: session, onHover: { inside in
+                    onHover(inside, session)
+                })
             }
         }
-        .frame(width: Metric.canvas, height: Metric.canvas)
+        .padding(pad)
+        .fixedSize()
+        .background(
+            GeometryReader { g in
+                Color.clear.preference(key: SizeKey.self, value: g.size)
+            }
+        )
+        .scaleEffect(uiScale, anchor: .topLeading)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .animation(.spring(response: 0.28, dampingFraction: 0.7), value: uiScale)
+        .animation(.easeOut(duration: 0.16), value: store.sessions.count)
+        .contentShape(Rectangle())
+        .onTapGesture(count: 2) {
+            uiScale = uiScale >= 1.49 ? 1.0 : (uiScale + 0.1)   // 1.0 → 1.1 → … → 1.5 → 1.0
+        }
+        .onPreferenceChange(SizeKey.self) { size in
+            baseSize = size
+            report()
+        }
+        .onChange(of: uiScale) { _ in report() }
+    }
+
+    private func report() {
+        guard baseSize.width > 0 else { return }
+        onSizeChange(CGSize(width: baseSize.width * uiScale, height: baseSize.height * uiScale))
     }
 }

@@ -26,16 +26,16 @@ final class TooltipPanel {
         panel.hidesOnDeactivate = false
     }
 
-    func show(folder: String, branch: String?, near windowFrame: NSRect) {
+    func show(folder: String, branch: String?, atCursor cursor: NSPoint) {
         model.folder = folder
         model.branch = branch
         host.layoutSubtreeIfNeeded()
         let size = host.fittingSize
         panel.setContentSize(size)
 
-        // Центрируем над видимым светофором (он в центре окна, а не у края).
-        let x = windowFrame.midX - size.width / 2
-        let y = windowFrame.midY + 52
+        // Над курсором, по центру по горизонтали.
+        let x = cursor.x - size.width / 2
+        let y = cursor.y + 22
         panel.setFrameOrigin(NSPoint(x: x, y: y))
         panel.orderFrontRegardless()
     }

@@ -21,14 +21,19 @@ final class AppController: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         // Плавающее безрамочное окно поверх всех приложений и на всех Spaces.
-        // Окно с запасом полей — чтобы hover-увеличение на 20% и свечение ламп
-        // не обрезались краями окна.
+        // Размер окна подгоняется под ряд светофоров (см. onSizeChange).
         let content = NSHostingView(
-            rootView: RootView(store: store, onHover: { [weak self] inside in
-                self?.handleHover(inside)
-            })
+            rootView: RootView(
+                store: store,
+                onHover: { [weak self] inside, session in
+                    self?.handleHover(inside, session: session)
+                },
+                onSizeChange: { [weak self] size in
+                    self?.resizeToContent(size)
+                }
+            )
         )
-        content.frame = NSRect(x: 0, y: 0, width: Metric.canvas, height: Metric.canvas)
+        content.frame = NSRect(x: 0, y: 0, width: 60, height: 100)
 
         let window = OverlayWindow(
             contentRect: content.frame,
@@ -80,14 +85,26 @@ final class AppController: NSObject, NSApplicationDelegate {
         tooltip = TooltipPanel()
     }
 
-    /// Показ/скрытие всплывающей подсказки при наведении на светофор.
-    private func handleHover(_ inside: Bool) {
-        guard let tooltip, let window else { return }
-        if inside, let session = store.active {
-            tooltip.show(folder: session.label, branch: session.branch, near: window.frame)
+    /// Показ/скрытие всплывающей подсказки при наведении на конкретный светофор.
+    private func handleHover(_ inside: Bool, session: SessionState?) {
+        guard let tooltip else { return }
+        if inside, let session {
+            // Позиционируем над курсором — корректно для любого светофора в ряду.
+            let mouse = NSEvent.mouseLocation
+            tooltip.show(folder: session.label, branch: session.branch, atCursor: mouse)
         } else {
             tooltip.hide()
         }
+    }
+
+    /// Подгоняем размер окна под ряд светофоров, удерживая верхний-левый угол на месте.
+    private func resizeToContent(_ size: CGSize) {
+        guard let window, size.width > 1, size.height > 1 else { return }
+        let f = window.frame
+        if abs(f.width - size.width) < 0.5 && abs(f.height - size.height) < 0.5 { return }
+        let top = f.maxY                                   // фиксируем верхний край
+        let origin = NSPoint(x: f.origin.x, y: top - size.height)
+        window.setFrame(NSRect(origin: origin, size: size), display: true)
     }
 }
 

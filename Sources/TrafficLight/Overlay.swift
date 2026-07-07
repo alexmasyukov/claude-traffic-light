@@ -23,6 +23,8 @@ struct TrafficLightView: View {
     var onHover: (Bool) -> Void = { _ in }
 
     @State private var hovered = false
+    // Пользовательский масштаб: двойной клик +10% до +50%, затем сброс. Хранится в UserDefaults.
+    @AppStorage("uiScale") private var uiScale: Double = 1.0
 
     var body: some View {
         HStack(alignment: .top, spacing: 0) {          // «?» на уровне верхней (красной) лампы
@@ -34,13 +36,19 @@ struct TrafficLightView: View {
             }
         }
         .padding(5)
+        .scaleEffect(uiScale)
         .animation(.easeOut(duration: 0.12), value: session.status)
         .animation(.easeOut(duration: 0.12), value: session.awaitingQuestion)
         .animation(.easeOut(duration: 0.15), value: hovered)
+        .animation(.spring(response: 0.28, dampingFraction: 0.7), value: uiScale)
         .onHover { inside in
             hovered = inside
             onHover(inside)
             if inside { NSCursor.pointingHand.push() } else { NSCursor.pop() }
+        }
+        .onTapGesture(count: 2) {
+            // 1.0 → 1.1 → … → 1.5 → 1.0
+            uiScale = uiScale >= 1.49 ? 1.0 : (uiScale + 0.1)
         }
     }
 

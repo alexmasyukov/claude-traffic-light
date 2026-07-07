@@ -3,8 +3,8 @@
 set -euo pipefail
 
 DIR="$(cd "$(dirname "$0")" && pwd)"
-LABEL="com.alex.trafficlight"
-APP_BIN="${HOME}/Applications/TrafficLight.app/Contents/MacOS/TrafficLight"
+LABEL="com.alex.claude-traffic-light"
+APP_BIN="${HOME}/Applications/claude-traffic-light.app/Contents/MacOS/claude-traffic-light"
 AGENTS="${HOME}/Library/LaunchAgents"
 PLIST="${AGENTS}/${LABEL}.plist"
 

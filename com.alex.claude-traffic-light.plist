@@ -3,7 +3,7 @@
 <plist version="1.0">
 <dict>
     <key>Label</key>
-    <string>com.alex.trafficlight</string>
+    <string>com.alex.claude-traffic-light</string>
     <key>ProgramArguments</key>
     <array>
         <string>__APP_BIN__</string>

@@ -3,8 +3,9 @@
 set -euo pipefail
 
 DIR="$(cd "$(dirname "$0")" && pwd)"
-APP_NAME="TrafficLight"
-BUNDLE_ID="com.alex.trafficlight"
+APP_NAME="claude-traffic-light"
+TARGET="TrafficLight"                    # имя SwiftPM-продукта (внутреннее)
+BUNDLE_ID="com.alex.claude-traffic-light"
 VERSION="1.0"
 DEST="${HOME}/Applications"
 APP="${DEST}/${APP_NAME}.app"
@@ -13,7 +14,7 @@ cd "$DIR"
 
 echo "→ Release-сборка…"
 swift build -c release >/dev/null
-BIN="$(swift build -c release --show-bin-path)/${APP_NAME}"
+BIN="$(swift build -c release --show-bin-path)/${TARGET}"
 
 echo "→ Сборка бандла ${APP}"
 rm -rf "$APP"

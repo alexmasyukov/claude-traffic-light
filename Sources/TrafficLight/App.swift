@@ -91,15 +91,29 @@ final class AppController: NSObject, NSApplicationDelegate {
         scheduleResize()   // стартовый размер под заглушку
     }
 
-    /// Подгоняем окно под контент: считаем размер на стороне AppKit после перелэйаута.
-    private func scheduleResize() {
-        DispatchQueue.main.async { [weak self] in
-            guard let self, let hosting = self.hosting else { return }
-            hosting.layoutSubtreeIfNeeded()
-            let base = hosting.fittingSize                 // без учёта scaleEffect
-            let s = CGFloat(self.ui.scale)
-            self.resizeToContent(CGSize(width: base.width * s, height: base.height * s))
+    /// Детерминированный размер ряда светофоров (без масштаба) — из констант Metric.
+    private func baseRowSize() -> CGSize {
+        let sessions = store.sessions
+        let count = max(1, sessions.count)
+        var width: CGFloat = 0
+        if sessions.isEmpty {
+            width = Metric.blockWidth
+        } else {
+            for s in sessions {
+                width += Metric.blockWidth
+                if s.awaitingQuestion { width += Metric.questionGap + Metric.blockWidth }
+            }
         }
+        width += Metric.rowGap * CGFloat(count - 1) + 2 * Metric.rowPad
+        let height = Metric.blockHeight + 2 * Metric.rowPad
+        return CGSize(width: width, height: height)
+    }
+
+    /// Подгоняем окно под ряд светофоров с учётом масштаба.
+    private func scheduleResize() {
+        let base = baseRowSize()
+        let s = CGFloat(ui.scale)
+        resizeToContent(CGSize(width: base.width * s, height: base.height * s))
     }
 
     /// Показ/скрытие всплывающей подсказки при наведении на конкретный светофор.
@@ -115,19 +129,28 @@ final class AppController: NSObject, NSApplicationDelegate {
     }
 
     /// Подгоняем размер окна под ряд светофоров, удерживая верхний-левый угол на месте.
-    private func resizeToContent(_ size: CGSize) {
-        guard let window, size.width > 1, size.height > 1 else { return }
+    private func resizeToContent(_ rawSize: CGSize) {
+        guard let window, rawSize.width > 1, rawSize.height > 1 else { return }
+        // +1px запас, чтобы субпиксельные расхождения при анимации не подрезали край.
+        let size = CGSize(width: ceil(rawSize.width) + 1, height: ceil(rawSize.height) + 1)
         let f = window.frame
         if abs(f.width - size.width) < 0.5 && abs(f.height - size.height) < 0.5 { return }
         let top = f.maxY                                   // фиксируем верхний край
         var origin = NSPoint(x: f.origin.x, y: top - size.height)
-        // Не даём окну уехать за правый/нижний край экрана — иначе крайние светофоры «обрезаются».
+        // Не даём окну уехать за край экрана — иначе крайние светофоры «обрезаются».
         if let vf = (window.screen ?? NSScreen.main)?.visibleFrame {
             if origin.x + size.width > vf.maxX { origin.x = vf.maxX - size.width }
             if origin.x < vf.minX { origin.x = vf.minX }
             if origin.y < vf.minY { origin.y = vf.minY }
         }
-        window.setFrame(NSRect(origin: origin, size: size), display: true)
+        let newFrame = NSRect(origin: origin, size: size)
+        // Анимируем окно синхронно с scaleEffect (та же длительность), чтобы при
+        // уменьшении масштаба окно не «обгоняло» контент и не резало его.
+        NSAnimationContext.runAnimationGroup { ctx in
+            ctx.duration = 0.22
+            ctx.timingFunction = CAMediaTimingFunction(name: .easeOut)
+            window.animator().setFrame(newFrame, display: true)
+        }
     }
 }
 

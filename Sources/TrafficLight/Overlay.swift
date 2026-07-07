@@ -7,9 +7,18 @@ enum Metric {
     static let blockPadding: CGFloat = 5
     static let corner: CGFloat = 7
 
+    static let rowGap: CGFloat = 12        // отступ между светофорами
+    static let rowPad: CGFloat = 8         // поля ряда под свечение
+    static let questionGap: CGFloat = 4    // отступ доп-секции от светофора
+
     /// Высота блока светофора.
     static var blockHeight: CGFloat {
         3 * lamp + 2 * lampSpacing + 2 * blockPadding
+    }
+
+    /// Ширина одного блока (светофор или доп-секция).
+    static var blockWidth: CGFloat {
+        lamp + 2 * blockPadding
     }
 }
 
@@ -141,26 +150,26 @@ struct RootView: View {
     var onHover: (Bool, SessionState?) -> Void = { _, _ in }
     var onScaleChanged: () -> Void = {}
 
-    private let gap: CGFloat = 12          // отступ между светофорами
-    private let pad: CGFloat = 8           // поля под свечение ламп
-
     /// Заглушка, когда ещё нет ни одной сессии — чтобы окно не было пустым.
     private static let placeholder = SessionState(id: "—", label: "idle")
 
     var body: some View {
         let sessions = store.sessions.isEmpty ? [Self.placeholder] : store.sessions
 
-        HStack(alignment: .top, spacing: gap) {
+        HStack(alignment: .top, spacing: Metric.rowGap) {
             ForEach(sessions) { session in
                 TrafficLightView(session: session, onHover: { inside in
                     onHover(inside, session)
                 })
             }
         }
-        .padding(pad)
+        .padding(Metric.rowPad)
         .fixedSize()
         .scaleEffect(ui.scale, anchor: .topLeading)
-        .animation(.spring(response: 0.28, dampingFraction: 0.7), value: ui.scale)
+        // Прижимаем контент к верхнему-левому углу окна: иначе SwiftUI центрирует
+        // немасштабированный бокс и scaleEffect выкидывает его за правый-нижний край.
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .animation(.easeOut(duration: 0.22), value: ui.scale)
         .animation(.easeOut(duration: 0.16), value: store.sessions.count)
         .contentShape(Rectangle())
         .onTapGesture(count: 2) {

@@ -75,8 +75,8 @@ final class AppController: NSObject, NSApplicationDelegate {
     /// Показ/скрытие всплывающей подсказки при наведении на светофор.
     private func handleHover(_ inside: Bool) {
         guard let tooltip, let window else { return }
-        if inside, let text = store.active?.tooltip {
-            tooltip.show(text: text, below: window.frame)
+        if inside, let session = store.active {
+            tooltip.show(folder: session.label, branch: session.branch, near: window.frame)
         } else {
             tooltip.hide()
         }

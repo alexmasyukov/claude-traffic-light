@@ -62,7 +62,8 @@ struct TrafficLightView: View {
             // Спиннер «идёт процесс» — только на активной лампе, кроме idle (готово).
             .overlay {
                 if on && which != .idle {
-                    Spinner().frame(width: Metric.lamp * 0.62, height: Metric.lamp * 0.62)
+                    Spinner(color: spinnerColor(for: which))
+                        .frame(width: Metric.lamp * 0.62, height: Metric.lamp * 0.62)
                 }
             }
             .shadow(color: on ? which.color.opacity(0.9) : .clear, radius: on ? 5 : 0)
@@ -87,9 +88,14 @@ struct TrafficLightView: View {
         .overlay(blockBorder)
     }
 
+    /// Цвет спиннера: тёмно-жёлтый на жёлтой лампе (белый теряется), иначе белый.
+    private func spinnerColor(for which: AgentStatus) -> Color {
+        which == .thinking ? Color(red: 0.42, green: 0.30, blue: 0.0) : .white
+    }
+
     private var blockBackground: some View {
         RoundedRectangle(cornerRadius: Metric.corner, style: .continuous)
-            .fill(Color.black.opacity(0.82))
+            .fill(Color(red: 0.07, green: 0.07, blue: 0.08))
     }
 
     private var blockBorder: some View {
@@ -100,13 +106,14 @@ struct TrafficLightView: View {
 
 /// Крутящаяся дуга — индикатор «идёт процесс» по центру активной лампы.
 struct Spinner: View {
+    var color: Color = .white
     @State private var spin = false
 
     var body: some View {
         Circle()
             .trim(from: 0, to: 0.28)
             .stroke(
-                Color.white.opacity(0.92),
+                color.opacity(0.92),
                 style: StrokeStyle(lineWidth: 2, lineCap: .round)
             )
             .rotationEffect(.degrees(spin ? 360 : 0))

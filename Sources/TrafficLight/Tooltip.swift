@@ -26,15 +26,16 @@ final class TooltipPanel {
         panel.hidesOnDeactivate = false
     }
 
-    func show(text: String, below windowFrame: NSRect) {
-        model.text = text
+    func show(folder: String, branch: String?, near windowFrame: NSRect) {
+        model.folder = folder
+        model.branch = branch
         panel.layoutIfNeeded()
         let size = host.fittingSize
         panel.setContentSize(size)
 
-        // Центрируем под окном светофора, с небольшим зазором.
+        // Центрируем над окном светофора, с небольшим зазором.
         let x = windowFrame.midX - size.width / 2
-        let y = windowFrame.minY - size.height - 6
+        let y = windowFrame.maxY + 6
         panel.setFrameOrigin(NSPoint(x: x, y: y))
         panel.orderFrontRegardless()
     }
@@ -46,16 +47,24 @@ final class TooltipPanel {
 
 @MainActor
 final class TooltipModel: ObservableObject {
-    @Published var text: String = ""
+    @Published var folder: String = ""
+    @Published var branch: String?
 }
 
 struct TooltipView: View {
     @ObservedObject var model: TooltipModel
 
     var body: some View {
-        Text(model.text)
-            .font(.system(size: 16, weight: .semibold, design: .rounded))
-            .foregroundColor(.white)
+        VStack(alignment: .leading, spacing: 2) {
+            Text(model.folder)
+                .font(.system(size: 16, weight: .semibold, design: .rounded))
+                .foregroundColor(.white)
+            if let branch = model.branch, !branch.isEmpty {
+                Text(branch)
+                    .font(.system(size: 16, weight: .regular, design: .rounded))
+                    .foregroundColor(.white.opacity(0.6))
+            }
+        }
             .fixedSize()
             .padding(.horizontal, 12)
             .padding(.vertical, 7)

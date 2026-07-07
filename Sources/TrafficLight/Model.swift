@@ -41,12 +41,6 @@ final class SessionState: ObservableObject, Identifiable {
         self.label = label
     }
 
-    /// Текст для всплывающей подсказки: «папка (ветка)».
-    var tooltip: String {
-        if let branch, !branch.isEmpty { return "\(label) · \(branch)" }
-        return label
-    }
-
     /// Асинхронно определяем git-ветку в cwd, не блокируя main.
     func refreshBranch() {
         guard let cwd else { return }

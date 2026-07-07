@@ -3,6 +3,13 @@ import AppKit
 
 let kPort: UInt16 = 47615
 
+/// Оверлей-окно: не забирает фокус (иначе при клике появляется рамка/белая линия),
+/// но остаётся перетаскиваемым за фон.
+final class OverlayWindow: NSWindow {
+    override var canBecomeKey: Bool { false }
+    override var canBecomeMain: Bool { false }
+}
+
 @MainActor
 final class AppController: NSObject, NSApplicationDelegate {
     let store = SessionStore()
@@ -14,15 +21,16 @@ final class AppController: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         // Плавающее безрамочное окно поверх всех приложений и на всех Spaces.
-        // Окно с запасом — чтобы hover-увеличение на 20% не обрезалось.
+        // Окно с запасом полей — чтобы hover-увеличение на 20% и свечение ламп
+        // не обрезались краями окна.
         let content = NSHostingView(
             rootView: RootView(store: store, onHover: { [weak self] inside in
                 self?.handleHover(inside)
             })
         )
-        content.frame = NSRect(x: 0, y: 0, width: 100, height: 96)
+        content.frame = NSRect(x: 0, y: 0, width: 130, height: 120)
 
-        let window = NSWindow(
+        let window = OverlayWindow(
             contentRect: content.frame,
             styleMask: [.borderless],
             backing: .buffered,
@@ -42,7 +50,7 @@ final class AppController: NSObject, NSApplicationDelegate {
             window.setFrameOrigin(NSPointFromString(saved))
         } else if let screen = NSScreen.main {
             let vf = screen.visibleFrame
-            window.setFrameOrigin(NSPoint(x: vf.maxX - 80, y: vf.maxY - 128))
+            window.setFrameOrigin(NSPoint(x: vf.maxX - 118, y: vf.maxY - 150))
         }
         window.orderFrontRegardless()
         self.window = window

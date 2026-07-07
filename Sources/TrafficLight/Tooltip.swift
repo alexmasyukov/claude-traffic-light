@@ -33,9 +33,9 @@ final class TooltipPanel {
         let size = host.fittingSize
         panel.setContentSize(size)
 
-        // Центрируем над окном светофора, с небольшим зазором.
+        // Центрируем над видимым светофором (он в центре окна, а не у края).
         let x = windowFrame.midX - size.width / 2
-        let y = windowFrame.maxY + 6
+        let y = windowFrame.midY + 52
         panel.setFrameOrigin(NSPoint(x: x, y: y))
         panel.orderFrontRegardless()
     }

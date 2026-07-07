@@ -10,6 +10,23 @@ final class OverlayWindow: NSWindow {
     override var canBecomeMain: Bool { false }
 }
 
+/// Hosting-view с контекстным меню по правому клику (пункт «Выход»).
+final class MenuHostingView: NSHostingView<RootView> {
+    required init(rootView: RootView) { super.init(rootView: rootView) }
+    @available(*, unavailable)
+    required init?(coder: NSCoder) { fatalError() }
+
+    override func rightMouseDown(with event: NSEvent) {
+        let menu = NSMenu()
+        let quit = NSMenuItem(title: "Выход",
+                              action: #selector(NSApplication.terminate(_:)),
+                              keyEquivalent: "")
+        quit.target = NSApp
+        menu.addItem(quit)
+        NSMenu.popUpContextMenu(menu, with: event, for: self)
+    }
+}
+
 @MainActor
 final class AppController: NSObject, NSApplicationDelegate {
     let store = SessionStore()
@@ -17,14 +34,14 @@ final class AppController: NSObject, NSApplicationDelegate {
     var window: NSWindow!
     var server: TrafficServer?
     private var tooltip: TooltipPanel?
-    private var hosting: NSHostingView<RootView>!
+    private var hosting: MenuHostingView!
 
     private let originKey = "windowOrigin"   // ключ UserDefaults для позиции
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         // Плавающее безрамочное окно поверх всех приложений и на всех Spaces.
         // Размер окна подгоняется под ряд светофоров (см. scheduleResize).
-        let content = NSHostingView(
+        let content = MenuHostingView(
             rootView: RootView(
                 store: store,
                 ui: ui,

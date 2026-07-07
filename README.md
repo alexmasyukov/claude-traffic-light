@@ -2,6 +2,8 @@
 
 A tiny always-on-top **traffic light** for macOS that shows what [Claude Code](https://claude.com/claude-code) is doing right now — driven by Claude Code hooks. One light per session, so you can watch several terminals at once.
 
+![claude-traffic-light — one light per Claude Code session, showing idle / thinking / running-a-tool and a question block](docs/screenshot.png)
+
 - 🟢 **green** — idle, agent finished and is waiting for you
 - 🟡 **yellow** — thinking / preparing / generating a reply (spinner animates)
 - 🔴 **red** — running a tool (spinner animates)

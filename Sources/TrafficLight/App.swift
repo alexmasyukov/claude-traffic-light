@@ -1,5 +1,6 @@
 import SwiftUI
 import AppKit
+import ApplicationServices
 
 @MainActor
 final class AppController: NSObject, NSApplicationDelegate {
@@ -88,49 +89,61 @@ final class AppController: NSObject, NSApplicationDelegate {
     /// (запрос появится при первом клике; в Info.plist есть NSAppleEventsUsageDescription).
     private func activateOwner(_ session: SessionState) {
         guard let bundleID = session.ownerBundleID, !bundleID.isEmpty else { return }
+        let bid = escapedForAppleScript(bundleID)
 
-        // Экранируем для строкового литерала AppleScript.
-        func esc(_ s: String) -> String {
-            s.replacingOccurrences(of: "\\", with: "\\\\").replacingOccurrences(of: "\"", with: "\\\"")
-        }
-        let bid = esc(bundleID)
-
-        // 1) reopen+activate выводит приложение вперёд (разворачивает свёрнутое) —
-        //    работает без Accessibility. 2) Если известно имя проекта, через System
-        //    Events поднимаем именно то окно, в заголовке которого есть имя папки
-        //    (для IDE с несколькими проектами). Требует прав Accessibility; без них
-        //    вторая часть тихо падает (лог), но приложение уже активировано.
-        var raiseWindow = ""
-        if !session.label.isEmpty, session.label != "session" {
-            let proj = esc(session.label)
-            raiseWindow = """
-            delay 0.1
-            tell application "System Events"
-                set procs to (every process whose bundle identifier is "\(bid)")
-                if procs is not {} then
-                    tell (item 1 of procs)
-                        set frontmost to true
-                        set matched to (every window whose name contains "\(proj)")
-                        if matched is not {} then perform action "AXRaise" of (item 1 of matched)
-                    end tell
-                end if
-            end tell
-            """
-        }
-        let source = """
+        // 1) Вывести приложение вперёд (reopen разворачивает свёрнутое окно).
+        //    Нужно только право Automation — macOS запросит его при первом Apple Event.
+        runAppleScript("""
         tell application id "\(bid)"
             reopen
             activate
         end tell
-        \(raiseWindow)
-        """
+        """)
 
-        // NSAppleScript не потокобезопасен — выполняем на main (тап и так на main).
+        // 2) Поднять именно окно проекта (IDE с несколькими окнами) — нужен Accessibility.
+        //    Нет имени проекта — на этом всё; приложение уже активировано.
+        guard !session.label.isEmpty, session.label != "session" else { return }
+
+        // Нет прав Accessibility — показываем системный запрос и выходим: окно
+        // поднимется на следующем клике, после того как пользователь выдаст доступ.
+        guard ensureAccessibilityAccess() else { return }
+
+        let proj = escapedForAppleScript(session.label)
+        runAppleScript("""
+        tell application "System Events"
+            set procs to (every process whose bundle identifier is "\(bid)")
+            if procs is not {} then
+                tell (item 1 of procs)
+                    set frontmost to true
+                    set matched to (every window whose name contains "\(proj)")
+                    if matched is not {} then perform action "AXRaise" of (item 1 of matched)
+                end tell
+            end if
+        end tell
+        """)
+    }
+
+    /// Экранирование для строкового литерала AppleScript.
+    private func escapedForAppleScript(_ s: String) -> String {
+        s.replacingOccurrences(of: "\\", with: "\\\\").replacingOccurrences(of: "\"", with: "\\\"")
+    }
+
+    /// NSAppleScript не потокобезопасен — выполняем на main (тап и так на main).
+    private func runAppleScript(_ source: String) {
         var error: NSDictionary?
         NSAppleScript(source: source)?.executeAndReturnError(&error)
         if let error {
-            FileHandle.standardError.write(Data("TrafficLight: activate \(bundleID) → \(error)\n".utf8))
+            FileHandle.standardError.write(Data("TrafficLight: AppleScript → \(error)\n".utf8))
         }
+    }
+
+    /// true — есть право Accessibility (нужно для поднятия окна через System Events).
+    /// Если права нет — один раз показываем системный запрос (с кнопкой в Настройки).
+    private func ensureAccessibilityAccess() -> Bool {
+        if AXIsProcessTrusted() { return true }
+        let options = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary
+        _ = AXIsProcessTrustedWithOptions(options)
+        return false
     }
 
     private func handleHover(_ inside: Bool, session: SessionState?) {

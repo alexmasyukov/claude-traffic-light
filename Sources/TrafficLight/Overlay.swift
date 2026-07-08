@@ -24,15 +24,18 @@ struct TrafficLightView: View {
     /// Раскладка одного светофора. Доп-секция «?»: сверху слева в горизонтальном
     /// виде, справа — в вертикальном и треугольном.
     @ViewBuilder private var content: some View {
-        if shape == .horizontal {
+        switch shape {
+        case .horizontal:
             VStack(alignment: .leading, spacing: 0) {
-                if session.awaitingQuestion {
-                    questionBlock.transition(.opacity)
-                    Spacer().frame(height: Metric.questionGap)
-                }
+                questionOnTop
                 lampBlock
             }
-        } else {
+        case .triangular:
+            VStack(alignment: .center, spacing: 0) {
+                questionOnTop           // круглая секция по центру над треугольником
+                lampBlock
+            }
+        case .vertical:
             HStack(alignment: .top, spacing: 0) {
                 lampBlock
                 if session.awaitingQuestion {
@@ -40,6 +43,13 @@ struct TrafficLightView: View {
                     questionBlock.transition(.opacity)
                 }
             }
+        }
+    }
+
+    @ViewBuilder private var questionOnTop: some View {
+        if session.awaitingQuestion {
+            questionBlock.transition(.opacity)
+            Spacer().frame(height: Metric.questionGap)
         }
     }
 
@@ -102,21 +112,46 @@ struct TrafficLightView: View {
     // MARK: - Доп-секция «вопрос»
 
     /// Горящая синяя заливка на всю область блока с отступом от края, «?» по центру.
+    /// В треугольном виде секция круглая, в остальных — скруглённый прямоугольник.
     private var questionBlock: some View {
         Image(systemName: "questionmark")
             .font(.system(size: Metric.lamp * Metric.questionMarkFactor, weight: .heavy))
             .foregroundColor(.white)
             .frame(width: Metric.lamp, height: Metric.lamp)
             .padding(Metric.blockPadding)
-            .background(
+            .background(questionFill)
+            .background(questionCorpus)
+            .overlay(questionBorder)
+    }
+
+    @ViewBuilder private var questionFill: some View {
+        Group {
+            if shape == .triangular {
+                Circle().fill(Palette.question)
+            } else {
                 RoundedRectangle(cornerRadius: Metric.corner - Metric.questionInset, style: .continuous)
                     .fill(Palette.question)
-                    .shadow(color: Palette.question, radius: Metric.questionGlow)      // горит, как лампа
-                    .shadow(color: Palette.question.opacity(0.7), radius: Metric.questionGlowSoft)
-                    .padding(Metric.questionInset)
-            )
-            .background(corpus)
-            .overlay(border)
+            }
+        }
+        .shadow(color: Palette.question, radius: Metric.questionGlow)      // горит, как лампа
+        .shadow(color: Palette.question.opacity(0.7), radius: Metric.questionGlowSoft)
+        .padding(Metric.questionInset)
+    }
+
+    @ViewBuilder private var questionCorpus: some View {
+        if shape == .triangular {
+            Circle().fill(hovered ? Palette.corpusHover : Palette.corpus)
+        } else {
+            corpus
+        }
+    }
+
+    @ViewBuilder private var questionBorder: some View {
+        if shape == .triangular {
+            Circle().stroke(Palette.border, lineWidth: 1)
+        } else {
+            border
+        }
     }
 
     // MARK: - Общие элементы корпуса
@@ -246,7 +281,7 @@ struct RootView: View {
 
     var body: some View {
         // Нет сессий — ряд пустой (окно прячет AppController), само приложение живёт.
-        HStack(alignment: ui.shape == .horizontal ? .bottom : .top, spacing: Metric.rowGap) {
+        HStack(alignment: ui.shape == .vertical ? .top : .bottom, spacing: Metric.rowGap) {
             ForEach(store.sessions) { session in
                 TrafficLightView(session: session, shape: ui.shape) { inside in
                     onHover(inside, session)

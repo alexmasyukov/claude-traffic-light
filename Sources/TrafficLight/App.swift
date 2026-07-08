@@ -93,29 +93,33 @@ final class AppController: NSObject, NSApplicationDelegate {
         guard !sessions.isEmpty else { return .zero }
         let gaps = Metric.rowGap * CGFloat(sessions.count - 1)
 
+        // «?» сверху (гориз./треуг.) добавляет высоту ряда; справа (верт.) — ширину.
+        let anyQuestion = sessions.contains(where: { $0.awaitingQuestion })
+
         switch ui.shape {
         case .horizontal:
-            // Лампы в ряд: ширина светофора = blockHeight, высота = blockWidth;
-            // «?» добавляется сверху, увеличивая высоту.
+            // Лампы в ряд: ширина светофора = blockHeight, высота = blockWidth.
             let width = Metric.blockHeight * CGFloat(sessions.count) + gaps + 2 * Metric.rowPad
             var lightHeight = Metric.blockWidth
-            if sessions.contains(where: { $0.awaitingQuestion }) {
-                lightHeight += Metric.questionGap + Metric.blockWidth
-            }
+            if anyQuestion { lightHeight += Metric.questionGap + Metric.blockWidth }
             return CGSize(width: width, height: lightHeight + 2 * Metric.rowPad)
 
-        case .vertical, .triangular:
-            // «?» добавляется справа, увеличивая ширину. Высота блока: blockHeight
-            // (столбик) или triSide (квадрат 2×2 для треугольника).
-            let lightSide = ui.shape == .triangular ? Metric.triSide : Metric.blockWidth
-            let blockH    = ui.shape == .triangular ? Metric.triSide : Metric.blockHeight
+        case .triangular:
+            // Квадрат triSide; круглая «?» сверху по центру.
+            let width = Metric.triSide * CGFloat(sessions.count) + gaps + 2 * Metric.rowPad
+            var lightHeight = Metric.triSide
+            if anyQuestion { lightHeight += Metric.questionGap + Metric.blockWidth }
+            return CGSize(width: width, height: lightHeight + 2 * Metric.rowPad)
+
+        case .vertical:
+            // «?» добавляется справа, увеличивая ширину — по каждой сессии.
             var width: CGFloat = 0
             for session in sessions {
-                width += lightSide
+                width += Metric.blockWidth
                 if session.awaitingQuestion { width += Metric.questionGap + Metric.blockWidth }
             }
             width += gaps + 2 * Metric.rowPad
-            return CGSize(width: width, height: blockH + 2 * Metric.rowPad)
+            return CGSize(width: width, height: Metric.blockHeight + 2 * Metric.rowPad)
         }
     }
 

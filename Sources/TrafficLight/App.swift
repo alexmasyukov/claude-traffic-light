@@ -81,10 +81,14 @@ final class AppController: NSObject, NSApplicationDelegate {
     // MARK: - Всплывающая подсказка
 
     private func handleHover(_ inside: Bool, session: SessionState?) {
-        guard let tooltip else { return }
+        guard let tooltip, let window else { return }
         if inside, let session {
-            // Над курсором — корректно для любого светофора в ряду.
-            tooltip.show(folder: session.label, branch: session.branch, atCursor: NSEvent.mouseLocation)
+            // Всегда над светофором (по верхней кромке окна), не перекрывая его;
+            // по горизонтали — над курсором (над тем светофором, на который навели).
+            let centerX = NSEvent.mouseLocation.x
+            let bottomY = window.frame.maxY + Metric.tooltipGap
+            tooltip.showAbove(folder: session.label, branch: session.branch,
+                              centerX: centerX, bottomY: bottomY)
         } else {
             tooltip.hide()
         }

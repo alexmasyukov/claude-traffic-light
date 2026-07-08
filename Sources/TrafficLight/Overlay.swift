@@ -50,24 +50,28 @@ struct TrafficLightView: View {
 
     // MARK: - Подпись папки
 
-    /// Горизонтальная подпись под светофором, обрезается многоточием по ширине.
+    /// Горизонтальная подпись под светофором. Длинное имя жёстко обрезается по
+    /// ширине (клип, без символа многоточия), начало имени сохраняется.
     private func horizontalLabel(width: CGFloat) -> some View {
         Text(session.label)
             .font(.system(size: Metric.labelFont))
             .foregroundColor(Palette.label)
             .lineLimit(1)
-            .truncationMode(.tail)
-            .frame(width: width, height: Metric.labelThickness)
+            .fixedSize()
+            .frame(width: width, height: Metric.labelThickness, alignment: .leading)
+            .clipped()
     }
 
-    /// Вертикальная подпись слева (читается снизу вверх), длина = высоте светофора.
+    /// Вертикальная подпись слева (читается снизу вверх), длина = высоте светофора,
+    /// обрезка клипом без многоточия.
     private var verticalLabel: some View {
         Text(session.label)
             .font(.system(size: Metric.labelFont))
             .foregroundColor(Palette.label)
             .lineLimit(1)
-            .truncationMode(.tail)
-            .frame(width: Metric.blockHeight, height: Metric.labelThickness)  // длина × толщина до поворота
+            .fixedSize()
+            .frame(width: Metric.blockHeight, height: Metric.labelThickness, alignment: .leading)  // длина × толщина до поворота
+            .clipped()
             .rotationEffect(.degrees(-90))
             .frame(width: Metric.labelThickness, height: Metric.blockHeight)  // след после поворота
     }

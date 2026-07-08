@@ -29,6 +29,7 @@ enum Metric {
     static let labelFont: CGFloat = 7.5      // кегль подписи
     static let labelThickness: CGFloat = 10  // толщина строки (высота под/ширина сбоку)
     static let labelGap: CGFloat = 2         // отступ подписи от светофора
+    static let tooltipGap: CGFloat = 6       // отступ всплывашки над верхней кромкой окна
 
     /// Высота блока светофора.
     static var blockHeight: CGFloat { 3 * lamp + 2 * lampSpacing + 2 * blockPadding }

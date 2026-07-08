@@ -71,8 +71,8 @@ struct TrafficLightView: View {
             }
         }
         .padding(Metric.blockPadding)
-        .background(corpus)
-        .overlay(border)
+        .background(corpusFill)
+        .overlay(corpusBorder)
     }
 
     private func lamp(_ which: AgentStatus) -> some View {
@@ -102,7 +102,6 @@ struct TrafficLightView: View {
         Image(systemName: "questionmark")
             .font(.system(size: Metric.lamp * Metric.questionMarkFactor, weight: .heavy))
             .foregroundColor(.white)
-            .rotationEffect(shape == .horizontal ? .degrees(-90) : .zero)   // «?» повёрнут под горизонтальный вид
             .frame(width: Metric.lamp, height: Metric.lamp)
             .padding(Metric.blockPadding)
             .background(
@@ -118,6 +117,31 @@ struct TrafficLightView: View {
 
     // MARK: - Общие элементы корпуса
 
+    /// Заливка корпуса светофора: прямоугольник (верт./гориз.) или треугольник
+    /// с закруглениями вокруг ламп (triangular).
+    @ViewBuilder private var corpusFill: some View {
+        if shape == .triangular {
+            triangleShape.fill(hovered ? Palette.corpusHover : Palette.corpus)
+        } else {
+            corpus
+        }
+    }
+
+    @ViewBuilder private var corpusBorder: some View {
+        if shape == .triangular {
+            triangleShape.stroke(Palette.border, lineWidth: 1)
+        } else {
+            border
+        }
+    }
+
+    /// Треугольник (вершиной вверх), «раздутый» вокруг центров трёх ламп на
+    /// (радиус лампы + отступ) — даёт скруглённые углы точно по лампам.
+    private var triangleShape: RoundedInflatedTriangle {
+        RoundedInflatedTriangle(radius: Metric.lamp / 2 + Metric.blockPadding)
+    }
+
+    // Прямоугольный корпус (верт./гориз.) и доп-секция «?».
     private var corpus: some View {
         RoundedRectangle(cornerRadius: Metric.corner, style: .continuous)
             .fill(hovered ? Palette.corpusHover : Palette.corpus)
@@ -126,6 +150,66 @@ struct TrafficLightView: View {
     private var border: some View {
         RoundedRectangle(cornerRadius: Metric.corner, style: .continuous)
             .stroke(Palette.border, lineWidth: 1)
+    }
+}
+
+/// Треугольник вершиной вверх, «раздутый» на `radius` вокруг центров трёх ламп
+/// (🟡 сверху по центру, 🟢 снизу слева, 🔴 снизу справа) — сумма Минковского
+/// с диском: каждый угол — дуга радиуса `radius`, между углами прямые рёбра.
+struct RoundedInflatedTriangle: Shape {
+    var radius: CGFloat
+
+    /// Центры ламп в системе координат корпуса (после padding).
+    private func vertices(in rect: CGRect) -> [CGPoint] {
+        let inset = Metric.blockPadding + Metric.lamp / 2
+        return [
+            CGPoint(x: rect.midX,          y: rect.minY + inset),   // 🟡 вершина
+            CGPoint(x: rect.minX + inset,  y: rect.maxY - inset),   // 🟢 левый низ
+            CGPoint(x: rect.maxX - inset,  y: rect.maxY - inset),   // 🔴 правый низ
+        ]
+    }
+
+    func path(in rect: CGRect) -> Path {
+        let pts = vertices(in: rect)
+        let n = pts.count
+        let centroid = CGPoint(x: pts.reduce(0) { $0 + $1.x } / CGFloat(n),
+                               y: pts.reduce(0) { $0 + $1.y } / CGFloat(n))
+
+        // Внешняя нормаль ребра a→b (наружу от центроида), единичная.
+        func outwardNormal(_ a: CGPoint, _ b: CGPoint) -> CGPoint {
+            let dx = b.x - a.x, dy = b.y - a.y
+            let len = max((dx * dx + dy * dy).squareRoot(), 0.0001)
+            var nx = -dy / len, ny = dx / len
+            let mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2
+            if nx * (mx - centroid.x) + ny * (my - centroid.y) < 0 { nx = -nx; ny = -ny }
+            return CGPoint(x: nx, y: ny)
+        }
+
+        var path = Path()
+        var started = false
+        for i in 0..<n {
+            let prev = pts[(i - 1 + n) % n]
+            let curr = pts[i]
+            let next = pts[(i + 1) % n]
+            let nIn = outwardNormal(prev, curr)
+            let nOut = outwardNormal(curr, next)
+            let aIn = atan2(nIn.y, nIn.x)
+            let aOut = atan2(nOut.y, nOut.x)
+            // Кратчайший поворот от aIn к aOut — трасса внешнего угла.
+            var delta = aOut - aIn
+            let twoPi = CGFloat.pi * 2
+            while delta <= -CGFloat.pi { delta += twoPi }
+            while delta > CGFloat.pi { delta -= twoPi }
+            // Дугу вокруг вершины сэмплируем отрезками (без неоднозначности clockwise).
+            let steps = max(2, Int(abs(delta) / (CGFloat.pi / 18)))
+            for s in 0...steps {
+                let a = aIn + delta * CGFloat(s) / CGFloat(steps)
+                let pt = CGPoint(x: curr.x + radius * cos(a), y: curr.y + radius * sin(a))
+                if started { path.addLine(to: pt) } else { path.move(to: pt); started = true }
+            }
+        }
+        path.closeSubpath()
+        return path
     }
 }
 

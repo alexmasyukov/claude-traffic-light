@@ -18,6 +18,12 @@ final class AppController: NSObject, NSApplicationDelegate {
             self.ui.cycleShape()
             self.scheduleResize()
         }
+        hosting.labelsShown = { [weak self] in self?.ui.showLabels ?? false }
+        hosting.onToggleLabels = { [weak self] in
+            guard let self else { return }
+            self.ui.toggleLabels()
+            self.scheduleResize()
+        }
 
         window = OverlayWindow.make(content: hosting)
         restorePosition()
@@ -94,28 +100,30 @@ final class AppController: NSObject, NSApplicationDelegate {
         let gaps = Metric.rowGap * CGFloat(sessions.count - 1)
 
         // «?» сверху (гориз./треуг.) добавляет высоту ряда; справа (верт.) — ширину.
+        // Подписи: снизу (гориз./треуг.) добавляют высоту; слева (верт.) — ширину.
         let anyQuestion = sessions.contains(where: { $0.awaitingQuestion })
+        let labelExtent = ui.showLabels ? Metric.labelThickness + Metric.labelGap : 0
 
         switch ui.shape {
         case .horizontal:
             // Лампы в ряд: ширина светофора = blockHeight, высота = blockWidth.
             let width = Metric.blockHeight * CGFloat(sessions.count) + gaps + 2 * Metric.rowPad
-            var lightHeight = Metric.blockWidth
+            var lightHeight = Metric.blockWidth + labelExtent
             if anyQuestion { lightHeight += Metric.questionGap + Metric.blockWidth }
             return CGSize(width: width, height: lightHeight + 2 * Metric.rowPad)
 
         case .triangular:
-            // Квадрат triSide; круглая «?» сверху по центру.
+            // Квадрат triSide; круглая «?» сверху по центру, подпись снизу.
             let width = Metric.triSide * CGFloat(sessions.count) + gaps + 2 * Metric.rowPad
-            var lightHeight = Metric.triSide
+            var lightHeight = Metric.triSide + labelExtent
             if anyQuestion { lightHeight += Metric.questionGap + Metric.blockWidth }
             return CGSize(width: width, height: lightHeight + 2 * Metric.rowPad)
 
         case .vertical:
-            // «?» добавляется справа, увеличивая ширину — по каждой сессии.
+            // «?» справа и подпись слева увеличивают ширину — по каждой сессии.
             var width: CGFloat = 0
             for session in sessions {
-                width += Metric.blockWidth
+                width += Metric.blockWidth + labelExtent
                 if session.awaitingQuestion { width += Metric.questionGap + Metric.blockWidth }
             }
             width += gaps + 2 * Metric.rowPad

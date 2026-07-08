@@ -25,6 +25,11 @@ enum Metric {
     static let lampActiveStroke: Double = 0.35
     static let spinnerOpacity: Double = 0.92
 
+    // Подпись папки под/сбоку светофора (режим «Показать названия»).
+    static let labelFont: CGFloat = 9        // кегль подписи
+    static let labelThickness: CGFloat = 12  // толщина строки (высота под/ширина сбоку)
+    static let labelGap: CGFloat = 2         // отступ подписи от светофора
+
     /// Высота блока светофора.
     static var blockHeight: CGFloat { 3 * lamp + 2 * lampSpacing + 2 * blockPadding }
 
@@ -60,6 +65,8 @@ enum Palette {
 
     static let tooltipBackground = Color.black.opacity(0.88)
     static let tooltipBorder     = Color.white.opacity(0.14)
+
+    static let label = Color.white.opacity(0.72)   // подпись папки
 
     static func lamp(for status: AgentStatus) -> Color {
         switch status {
@@ -97,5 +104,6 @@ enum Config {
         static let windowOrigin = "windowOrigin"
         static let uiScale = "uiScale"
         static let shape = "lightShape"
+        static let showLabels = "showLabels"
     }
 }

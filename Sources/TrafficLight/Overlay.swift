@@ -5,12 +5,13 @@ import SwiftUI
 struct TrafficLightView: View {
     @ObservedObject var session: SessionState
     var shape: LightShape = .vertical
+    var showLabel: Bool = false
     var onHover: (Bool) -> Void = { _ in }
 
     @State private var hovered = false
 
     var body: some View {
-        content
+        labeledContent
             .animation(Anim.status, value: session.status)
             .animation(Anim.question, value: session.awaitingQuestion)
             .animation(Anim.hover, value: hovered)
@@ -19,6 +20,56 @@ struct TrafficLightView: View {
                 onHover(inside)
                 if inside { NSCursor.pointingHand.push() } else { NSCursor.pop() }
             }
+    }
+
+    /// Светофор с подписью папки: слева (вертикально) в вертикальном виде,
+    /// снизу — в горизонтальном и треугольном. Длина подписи = длине светофора.
+    @ViewBuilder private var labeledContent: some View {
+        if showLabel {
+            switch shape {
+            case .vertical:
+                HStack(spacing: Metric.labelGap) {
+                    verticalLabel
+                    content
+                }
+            case .horizontal:
+                VStack(spacing: Metric.labelGap) {
+                    content
+                    horizontalLabel(width: Metric.blockHeight)
+                }
+            case .triangular:
+                VStack(spacing: Metric.labelGap) {
+                    content
+                    horizontalLabel(width: Metric.triSide)
+                }
+            }
+        } else {
+            content
+        }
+    }
+
+    // MARK: - Подпись папки
+
+    /// Горизонтальная подпись под светофором, обрезается многоточием по ширине.
+    private func horizontalLabel(width: CGFloat) -> some View {
+        Text(session.label)
+            .font(.system(size: Metric.labelFont))
+            .foregroundColor(Palette.label)
+            .lineLimit(1)
+            .truncationMode(.tail)
+            .frame(width: width, height: Metric.labelThickness)
+    }
+
+    /// Вертикальная подпись слева (читается снизу вверх), длина = высоте светофора.
+    private var verticalLabel: some View {
+        Text(session.label)
+            .font(.system(size: Metric.labelFont))
+            .foregroundColor(Palette.label)
+            .lineLimit(1)
+            .truncationMode(.tail)
+            .frame(width: Metric.blockHeight, height: Metric.labelThickness)  // длина × толщина до поворота
+            .rotationEffect(.degrees(-90))
+            .frame(width: Metric.labelThickness, height: Metric.blockHeight)  // след после поворота
     }
 
     /// Раскладка одного светофора. Доп-секция «?»: сверху слева в горизонтальном
@@ -283,7 +334,7 @@ struct RootView: View {
         // Нет сессий — ряд пустой (окно прячет AppController), само приложение живёт.
         HStack(alignment: ui.shape == .vertical ? .top : .bottom, spacing: Metric.rowGap) {
             ForEach(store.sessions) { session in
-                TrafficLightView(session: session, shape: ui.shape) { inside in
+                TrafficLightView(session: session, shape: ui.shape, showLabel: ui.showLabels) { inside in
                     onHover(inside, session)
                 }
             }
@@ -296,6 +347,7 @@ struct RootView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .animation(Anim.scale, value: ui.scale)
         .animation(Anim.scale, value: ui.shape)
+        .animation(Anim.scale, value: ui.showLabels)
         .animation(Anim.sessions, value: store.sessions.count)
         .contentShape(Rectangle())
         .onTapGesture(count: 2) {

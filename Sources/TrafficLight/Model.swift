@@ -122,12 +122,15 @@ final class UIState: ObservableObject {
     @Published var scale: Double
     /// Форма светофоров, циклится по меню «Сменить вид». Персист.
     @Published var shape: LightShape
+    /// Показывать ли подписи папок (меню «Показать/Скрыть названия»). Персист.
+    @Published var showLabels: Bool
 
     init() {
         let saved = UserDefaults.standard.double(forKey: Config.Key.uiScale)
         scale = (saved >= Config.scaleMin && saved <= Config.scaleMax) ? saved : Config.scaleMin
         let savedShape = UserDefaults.standard.string(forKey: Config.Key.shape)
         shape = savedShape.flatMap(LightShape.init(rawValue:)) ?? .vertical
+        showLabels = UserDefaults.standard.bool(forKey: Config.Key.showLabels)
     }
 
     func cycleScale() {
@@ -141,5 +144,10 @@ final class UIState: ObservableObject {
         let next = all.firstIndex(of: shape).map { all[($0 + 1) % all.count] } ?? .vertical
         shape = next
         UserDefaults.standard.set(shape.rawValue, forKey: Config.Key.shape)
+    }
+
+    func toggleLabels() {
+        showLabels.toggle()
+        UserDefaults.standard.set(showLabels, forKey: Config.Key.showLabels)
     }
 }

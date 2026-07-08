@@ -27,10 +27,14 @@ final class OverlayWindow: NSWindow {
     }
 }
 
-/// Hosting-view с контекстным меню по правому клику: «Сменить вид» и «Выход».
+/// Hosting-view с контекстным меню по правому клику: «Сменить вид»,
+/// «Показать/Скрыть названия» и «Выход».
 final class MenuHostingView: NSHostingView<RootView> {
     /// Циклит форму светофоров — задаёт AppController.
     var onCycleShape: (() -> Void)?
+    /// Переключатель подписей и текущее их состояние (для подписи пункта).
+    var onToggleLabels: (() -> Void)?
+    var labelsShown: (() -> Bool)?
 
     required init(rootView: RootView) { super.init(rootView: rootView) }
     @available(*, unavailable)
@@ -47,6 +51,13 @@ final class MenuHostingView: NSHostingView<RootView> {
                                keyEquivalent: "")
         cycle.target = self
         menu.addItem(cycle)
+
+        let shown = labelsShown?() ?? false
+        let labels = NSMenuItem(title: shown ? "Скрыть названия" : "Показать названия",
+                                action: #selector(toggleLabels),
+                                keyEquivalent: "")
+        labels.target = self
+        menu.addItem(labels)
         menu.addItem(.separator())
 
         let quit = NSMenuItem(title: "Выход",
@@ -59,4 +70,5 @@ final class MenuHostingView: NSHostingView<RootView> {
     }
 
     @objc private func cycleShape() { onCycleShape?() }
+    @objc private func toggleLabels() { onToggleLabels?() }
 }

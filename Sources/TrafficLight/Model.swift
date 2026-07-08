@@ -15,6 +15,7 @@ enum HookEvent: String {
     case postToolUse      = "PostToolUse"
     case notification     = "Notification"
     case stop             = "Stop"
+    case stopAsk          = "StopAsk"   // синтетический: Stop, но ход завершён текстовым вопросом
     case sessionStart     = "SessionStart"
     case sessionEnd       = "SessionEnd"
 }
@@ -52,8 +53,20 @@ final class SessionState: ObservableObject, Identifiable {
             status = .working
             awaitingQuestion = false
         case .postToolUse:
+            // Инструмент отработал — любой связанный с ним вопрос/разрешение снят
+            // (иначе «?» от AskUserQuestion зависает, пока агент формирует ответ).
             status = .thinking
+            awaitingQuestion = false
         case .notification:
+            // Notification прилетает двух видов: запрос разрешения (агент активен —
+            // нужен ответ, «?») и простой ввода ≥60с (idle_prompt — агент уже закончил,
+            // вопроса нет). Различаем по активности (локале-независимо) и НИКОГДА не гасим
+            // уже висящий вопрос: реальный запрос возможен только пока агент работает,
+            // в простое (status == .idle) idle-пинг игнорируем — иначе «?» ложно повиснет.
+            if status != .idle { awaitingQuestion = true }
+        case .stopAsk:
+            // Агент закончил ход, но задал вопрос — красный + «?» (ждём ответа).
+            status = .working
             awaitingQuestion = true
         case .stop, .sessionStart, .sessionEnd:
             status = .idle

@@ -47,9 +47,10 @@ struct TrafficLightView: View {
             .frame(width: Metric.lamp, height: Metric.lamp)
             .opacity(on ? 1 : Metric.lampInactiveOpacity)
             .overlay(Circle().stroke(Color.white.opacity(on ? Metric.lampActiveStroke : 0), lineWidth: 0.8))
-            // Спиннер «идёт процесс» — только на активной лампе, кроме idle (готово).
+            // Спиннер «идёт процесс» — только на активной лампе, кроме idle (готово)
+            // и кроме ожидания ответа на вопрос (лампа горит ровно, процесс не идёт).
             .overlay {
-                if on && which != .idle {
+                if on && which != .idle && !session.awaitingQuestion {
                     Spinner(color: Palette.spinner(for: which))
                         .frame(width: Metric.lamp * Metric.spinnerFactor,
                                height: Metric.lamp * Metric.spinnerFactor)

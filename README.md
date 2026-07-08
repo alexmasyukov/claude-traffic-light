@@ -37,7 +37,7 @@ See [`docs/hooks.md`](docs/hooks.md) for the full mapping, including how a text 
 ## Interaction
 
 - **Hover** — cursor turns into a hand, the light brightens, and a tooltip (pinned above the light) shows `folder · branch`.
-- **Click** — bring the app running that session's Claude Code to the front (IDE/terminal, detected from the hook's `__CFBundleIdentifier`).
+- **Click** — bring the session's window to the front. The owner app (from the hook's `__CFBundleIdentifier`) is activated, and for multi-window IDEs the window whose title contains the project folder name is raised (`activate` + `AXRaise` Apple Event). Needs Automation + Accessibility permission, prompted on first click (see [`scripts/`](scripts/README.md) for the standalone equivalent).
 - **Double-click** — cycle scale +10% up to +50%, then reset. Scale and window position are remembered.
 - **Drag** — move the window anywhere; position is saved.
 - **Right-click** — context menu: **Сменить вид** (cycle vertical → horizontal → triangular), **Показать/Скрыть названия** (folder name under/beside each light, truncated to its length), or **Quit**. All remembered.
@@ -91,6 +91,7 @@ Restart Claude Code (or start a new session) to reload `settings.json`. The gate
 - `hooks/last-question.py` — `Stop` transcript check (text question → 🔴 + ❓)
 - `hooks/settings.example.json` — ready-to-paste hooks block for `~/.claude/settings.json`
 - `docs/hooks.md` — full hooks setup & event mapping
+- `scripts/` — standalone reference scripts (e.g. focus a project window)
 - `build-app.sh` — build the release `.app` bundle into `~/Applications`
 - `install-autostart.sh` — install the LaunchAgent
 - `com.alex.claude-traffic-light.plist` — LaunchAgent template

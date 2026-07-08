@@ -6,7 +6,7 @@ DIR="$(cd "$(dirname "$0")" && pwd)"
 APP_NAME="claude-traffic-light"
 TARGET="TrafficLight"                    # имя SwiftPM-продукта (внутреннее)
 BUNDLE_ID="com.alex.claude-traffic-light"
-VERSION="1.2"
+VERSION="1.3"
 DEST="${HOME}/Applications"
 APP="${DEST}/${APP_NAME}.app"
 

@@ -89,7 +89,13 @@ final class AppController: NSObject, NSApplicationDelegate {
     private func activateOwner(_ session: SessionState) {
         guard let bundleID = session.ownerBundleID, !bundleID.isEmpty else { return }
         // NSAppleScript не потокобезопасен — выполняем на main (тап и так на main).
-        let source = "tell application id \"\(bundleID)\" to activate"
+        // reopen = клик по иконке в Dock: разворачивает свёрнутое окно; activate — вперёд.
+        let source = """
+        tell application id "\(bundleID)"
+            reopen
+            activate
+        end tell
+        """
         var error: NSDictionary?
         NSAppleScript(source: source)?.executeAndReturnError(&error)
         if let error {

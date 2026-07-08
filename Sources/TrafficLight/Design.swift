@@ -26,8 +26,8 @@ enum Metric {
     static let spinnerOpacity: Double = 0.92
 
     // Подпись папки под/сбоку светофора (режим «Показать названия»).
-    static let labelFont: CGFloat = 9        // кегль подписи
-    static let labelThickness: CGFloat = 12  // толщина строки (высота под/ширина сбоку)
+    static let labelFont: CGFloat = 7.5      // кегль подписи
+    static let labelThickness: CGFloat = 10  // толщина строки (высота под/ширина сбоку)
     static let labelGap: CGFloat = 2         // отступ подписи от светофора
 
     /// Высота блока светофора.

@@ -36,6 +36,7 @@ cat > "${APP}/Contents/Info.plist" <<PLIST
     <key>LSMinimumSystemVersion</key>  <string>13.0</string>
     <key>LSUIElement</key>             <true/>
     <key>NSHighResolutionCapable</key> <true/>
+    <key>NSAppleEventsUsageDescription</key> <string>Bring the app running Claude Code (your IDE or terminal) to the front when you click its traffic light.</string>
 </dict>
 </plist>
 PLIST

@@ -88,14 +88,44 @@ final class AppController: NSObject, NSApplicationDelegate {
     /// (запрос появится при первом клике; в Info.plist есть NSAppleEventsUsageDescription).
     private func activateOwner(_ session: SessionState) {
         guard let bundleID = session.ownerBundleID, !bundleID.isEmpty else { return }
-        // NSAppleScript не потокобезопасен — выполняем на main (тап и так на main).
-        // reopen = клик по иконке в Dock: разворачивает свёрнутое окно; activate — вперёд.
+
+        // Экранируем для строкового литерала AppleScript.
+        func esc(_ s: String) -> String {
+            s.replacingOccurrences(of: "\\", with: "\\\\").replacingOccurrences(of: "\"", with: "\\\"")
+        }
+        let bid = esc(bundleID)
+
+        // 1) reopen+activate выводит приложение вперёд (разворачивает свёрнутое) —
+        //    работает без Accessibility. 2) Если известно имя проекта, через System
+        //    Events поднимаем именно то окно, в заголовке которого есть имя папки
+        //    (для IDE с несколькими проектами). Требует прав Accessibility; без них
+        //    вторая часть тихо падает (лог), но приложение уже активировано.
+        var raiseWindow = ""
+        if !session.label.isEmpty, session.label != "session" {
+            let proj = esc(session.label)
+            raiseWindow = """
+            delay 0.1
+            tell application "System Events"
+                set procs to (every process whose bundle identifier is "\(bid)")
+                if procs is not {} then
+                    tell (item 1 of procs)
+                        set frontmost to true
+                        set matched to (every window whose name contains "\(proj)")
+                        if matched is not {} then perform action "AXRaise" of (item 1 of matched)
+                    end tell
+                end if
+            end tell
+            """
+        }
         let source = """
-        tell application id "\(bundleID)"
+        tell application id "\(bid)"
             reopen
             activate
         end tell
+        \(raiseWindow)
         """
+
+        // NSAppleScript не потокобезопасен — выполняем на main (тап и так на main).
         var error: NSDictionary?
         NSAppleScript(source: source)?.executeAndReturnError(&error)
         if let error {

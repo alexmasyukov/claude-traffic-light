@@ -3,7 +3,24 @@
 # если последнее сообщение ассистента — текст, оканчивающийся вопросительным знаком.
 # Используется traffic-hook.sh, чтобы светофор показывал «?» и на свободные
 # текстовые вопросы (не только на интерфейсные вроде AskUserQuestion).
-import sys, json
+import sys, json, os, time
+
+
+def wait_until_stable(path, quiet=0.25, timeout=1.5):
+    """Claude Code может дописать финальное сообщение в транскрипт уже после
+    запуска Stop-хука. Ждём, пока файл перестанет меняться (mtime не растёт
+    в течение `quiet`), но не дольше `timeout`, — иначе вопрос не распознаётся."""
+    deadline = time.time() + timeout
+    prev = None
+    while time.time() < deadline:
+        try:
+            mtime = os.path.getmtime(path)
+        except OSError:
+            return
+        if mtime == prev:
+            return
+        prev = mtime
+        time.sleep(quiet)
 
 
 def last_assistant_text(path):
@@ -40,6 +57,7 @@ def main():
     path = data.get("transcript_path")
     if not path:
         return
+    wait_until_stable(path)
     try:
         text = last_assistant_text(path)
     except OSError:

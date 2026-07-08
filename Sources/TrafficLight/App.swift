@@ -82,10 +82,15 @@ final class AppController: NSObject, NSApplicationDelegate {
     // MARK: - Всплывающая подсказка
 
     /// Клик по светофору — вывести на передний план приложение, где запущен его Claude Code.
+    /// Через LaunchServices (NSWorkspace.openApplication): фоновому .accessory-приложению
+    /// macOS не даёт активировать чужое окно напрямую (NSRunningApplication.activate),
+    /// а открытие уже запущенного приложения с activates=true — надёжно выводит его вперёд.
     private func activateOwner(_ session: SessionState) {
-        guard let bundleID = session.ownerBundleID, !bundleID.isEmpty else { return }
-        NSRunningApplication.runningApplications(withBundleIdentifier: bundleID)
-            .first?.activate(options: [.activateAllWindows])
+        guard let bundleID = session.ownerBundleID, !bundleID.isEmpty,
+              let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleID) else { return }
+        let config = NSWorkspace.OpenConfiguration()
+        config.activates = true
+        NSWorkspace.shared.openApplication(at: url, configuration: config, completionHandler: nil)
     }
 
     private func handleHover(_ inside: Bool, session: SessionState?) {

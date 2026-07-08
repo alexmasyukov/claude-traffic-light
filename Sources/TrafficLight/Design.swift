@@ -33,6 +33,15 @@ enum Metric {
 
     /// Сторона квадратного блока в треугольной раскладке (2 лампы × 2 лампы).
     static var triSide: CGFloat { 2 * lamp + lampSpacing + 2 * blockPadding }
+
+    // Треугольная раскладка — равносторонний треугольник центров ламп: все три
+    // расстояния между центрами равны (lamp + lampSpacing), поэтому вертикальный
+    // зазор VStack меньше горизонтального (высота равностороннего = сторона·√3/2).
+    static var triLampSpacingV: CGFloat { (CGFloat(3).squareRoot() / 2) * (lamp + lampSpacing) - lamp }
+    /// Высота контента (без паддинга) в треугольной раскладке.
+    static var triContentHeight: CGFloat { 2 * lamp + triLampSpacingV }
+    /// Вертикальный отступ, центрирующий контент в квадрате triSide.
+    static var triPadV: CGFloat { (triSide - triContentHeight) / 2 }
 }
 
 /// Цвета приложения.

@@ -53,26 +53,30 @@ struct TrafficLightView: View {
 
     /// Лампы в корпусе — раскладка зависит от формы.
     private var lampBlock: some View {
-        Group {
-            switch shape {
-            case .vertical:
-                VStack(spacing: Metric.lampSpacing) { lampSequence }
-            case .horizontal:
-                HStack(spacing: Metric.lampSpacing) { lampSequence }
-            case .triangular:
-                // 🟡 сверху по центру, 🟢 слева, 🔴 справа.
-                VStack(spacing: Metric.lampSpacing) {
-                    lamp(.thinking)
-                    HStack(spacing: Metric.lampSpacing) {
-                        lamp(.idle)
-                        lamp(.working)
-                    }
+        lampArrangement
+            .padding(.horizontal, Metric.blockPadding)
+            // Треугольник центрируем по вертикали в квадратной рамке triSide.
+            .padding(.vertical, shape == .triangular ? Metric.triPadV : Metric.blockPadding)
+            .background(corpusFill)
+            .overlay(corpusBorder)
+    }
+
+    @ViewBuilder private var lampArrangement: some View {
+        switch shape {
+        case .vertical:
+            VStack(spacing: Metric.lampSpacing) { lampSequence }
+        case .horizontal:
+            HStack(spacing: Metric.lampSpacing) { lampSequence }
+        case .triangular:
+            // 🟡 сверху по центру, 🟢 слева, 🔴 справа — равносторонний треугольник центров.
+            VStack(spacing: Metric.triLampSpacingV) {
+                lamp(.thinking)
+                HStack(spacing: Metric.lampSpacing) {
+                    lamp(.idle)
+                    lamp(.working)
                 }
             }
         }
-        .padding(Metric.blockPadding)
-        .background(corpusFill)
-        .overlay(corpusBorder)
     }
 
     private func lamp(_ which: AgentStatus) -> some View {
@@ -159,13 +163,14 @@ struct TrafficLightView: View {
 struct RoundedInflatedTriangle: Shape {
     var radius: CGFloat
 
-    /// Центры ламп в системе координат корпуса (после padding).
+    /// Центры ламп в системе координат корпуса — совпадают с раскладкой lampArrangement
+    /// (равносторонний треугольник, отцентрованный по вертикали в квадрате triSide).
     private func vertices(in rect: CGRect) -> [CGPoint] {
-        let inset = Metric.blockPadding + Metric.lamp / 2
+        let r = Metric.lamp / 2
         return [
-            CGPoint(x: rect.midX,          y: rect.minY + inset),   // 🟡 вершина
-            CGPoint(x: rect.minX + inset,  y: rect.maxY - inset),   // 🟢 левый низ
-            CGPoint(x: rect.maxX - inset,  y: rect.maxY - inset),   // 🔴 правый низ
+            CGPoint(x: rect.midX,                            y: rect.minY + Metric.triPadV + r),  // 🟡 вершина
+            CGPoint(x: rect.minX + Metric.blockPadding + r,  y: rect.maxY - Metric.triPadV - r),  // 🟢 левый низ
+            CGPoint(x: rect.maxX - Metric.blockPadding - r,  y: rect.maxY - Metric.triPadV - r),  // 🔴 правый низ
         ]
     }
 

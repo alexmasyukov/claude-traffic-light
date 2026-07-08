@@ -41,15 +41,16 @@ final class AppController: NSObject, NSApplicationDelegate {
             store: store,
             ui: ui,
             onHover: { [weak self] inside, session in self?.handleHover(inside, session: session) },
-            onScaleChanged: { [weak self] in self?.scheduleResize() }
+            onScaleChanged: { [weak self] in self?.scheduleResize() },
+            onActivate: { [weak self] session in self?.activateOwner(session) }
         ))
     }
 
     private func startServer() {
-        server = TrafficServer(port: Config.port) { [weak self] type, sessionID, cwd in
+        server = TrafficServer(port: Config.port) { [weak self] type, sessionID, cwd, app in
             guard let self, let event = HookEvent(rawValue: type) else { return }
             DispatchQueue.main.async {
-                self.store.handle(sessionID: sessionID, event: event, cwd: cwd)
+                self.store.handle(sessionID: sessionID, event: event, cwd: cwd, app: app)
                 self.scheduleResize()
             }
         }
@@ -79,6 +80,13 @@ final class AppController: NSObject, NSApplicationDelegate {
     }
 
     // MARK: - Всплывающая подсказка
+
+    /// Клик по светофору — вывести на передний план приложение, где запущен его Claude Code.
+    private func activateOwner(_ session: SessionState) {
+        guard let bundleID = session.ownerBundleID, !bundleID.isEmpty else { return }
+        NSRunningApplication.runningApplications(withBundleIdentifier: bundleID)
+            .first?.activate(options: [.activateAllWindows])
+    }
 
     private func handleHover(_ inside: Bool, session: SessionState?) {
         guard let tooltip, let window else { return }

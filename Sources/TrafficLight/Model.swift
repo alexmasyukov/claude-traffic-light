@@ -28,6 +28,7 @@ final class SessionState: ObservableObject, Identifiable {
     @Published var label: String   // короткое имя (папка проекта)
     @Published var branch: String? // git-ветка в cwd
     var cwd: String?
+    var ownerBundleID: String?     // bundle id приложения, где запущен Claude Code (для активации по клику)
 
     init(id: String, label: String) {
         self.id = id
@@ -82,7 +83,7 @@ final class SessionStore: ObservableObject {
 
     private var index: [String: SessionState] = [:]
 
-    func handle(sessionID: String, event: HookEvent, cwd: String?) {
+    func handle(sessionID: String, event: HookEvent, cwd: String?, app: String? = nil) {
         if event == .sessionEnd {
             guard index.removeValue(forKey: sessionID) != nil else { return }
             sessions.removeAll { $0.id == sessionID }
@@ -97,6 +98,7 @@ final class SessionStore: ObservableObject {
             if session.cwd != cwd { session.cwd = cwd }
             session.refreshBranch()
         }
+        if let app, !app.isEmpty { session.ownerBundleID = app }
         session.apply(event)
     }
 

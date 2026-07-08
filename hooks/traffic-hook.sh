@@ -15,7 +15,14 @@ if [ "$EVENT" = "Stop" ]; then
     fi
 fi
 
-curl -s -m 1 -X POST "http://127.0.0.1:47615/event?type=${TYPE}" \
+# Приложение, в котором запущен Claude Code (терминал/IDE) — macOS кладёт его
+# bundle id в __CFBundleIdentifier. Передаём, чтобы по клику активировать окно.
+URL="http://127.0.0.1:47615/event?type=${TYPE}"
+if [ -n "${__CFBundleIdentifier:-}" ]; then
+    URL="${URL}&app=${__CFBundleIdentifier}"
+fi
+
+curl -s -m 1 -X POST "${URL}" \
      -H "Content-Type: application/json" \
      --data-binary "${BODY}" >/dev/null 2>&1 || true
 exit 0

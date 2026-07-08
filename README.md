@@ -37,6 +37,7 @@ See [`docs/hooks.md`](docs/hooks.md) for the full mapping, including how a text 
 ## Interaction
 
 - **Hover** — cursor turns into a hand, the light brightens, and a tooltip (pinned above the light) shows `folder · branch`.
+- **Click** — bring the app running that session's Claude Code to the front (IDE/terminal, detected from the hook's `__CFBundleIdentifier`).
 - **Double-click** — cycle scale +10% up to +50%, then reset. Scale and window position are remembered.
 - **Drag** — move the window anywhere; position is saved.
 - **Right-click** — context menu: **Сменить вид** (cycle vertical → horizontal → triangular), **Показать/Скрыть названия** (folder name under/beside each light, truncated to its length), or **Quit**. All remembered.

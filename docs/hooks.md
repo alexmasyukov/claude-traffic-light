@@ -15,7 +15,9 @@ Nothing here is a third-party dependency — both scripts live in this repo:
 
 The gateway is invoked as `traffic-hook.sh <EventName>`; it POSTs to
 `http://127.0.0.1:47615/event?type=<EventName>` with the hook's stdin JSON body
-(`session_id`, `cwd`, `transcript_path`, …).
+(`session_id`, `cwd`, `transcript_path`, …). It also appends `&app=$__CFBundleIdentifier`
+— the bundle id of the app running Claude Code (IDE/terminal) — so clicking a light
+can bring that app to the front.
 
 | Hook event         | Meaning                          | Light                          |
 |--------------------|----------------------------------|--------------------------------|

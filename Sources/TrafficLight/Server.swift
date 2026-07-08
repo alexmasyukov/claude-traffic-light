@@ -5,9 +5,9 @@ import Network
 /// с JSON-телом хука (session_id, cwd, ...). Без зависимостей — на Network.framework.
 final class TrafficServer {
     private let listener: NWListener
-    private let onEvent: (_ type: String, _ sessionID: String, _ cwd: String?) -> Void
+    private let onEvent: (_ type: String, _ sessionID: String, _ cwd: String?, _ app: String?) -> Void
 
-    init?(port: UInt16, onEvent: @escaping (_ type: String, _ sessionID: String, _ cwd: String?) -> Void) {
+    init?(port: UInt16, onEvent: @escaping (_ type: String, _ sessionID: String, _ cwd: String?, _ app: String?) -> Void) {
         self.onEvent = onEvent
         let params = NWParameters.tcp
         params.allowLocalEndpointReuse = true
@@ -46,7 +46,15 @@ final class TrafficServer {
         }
     }
 
-    private struct Request { let type: String; let body: Data }
+    private struct Request { let type: String; let app: String?; let body: Data }
+
+    /// Значение query-параметра из request line (до пробела или `&`).
+    private static func queryValue(_ key: String, in requestLine: String) -> String? {
+        guard let r = requestLine.range(of: "\(key)=") else { return nil }
+        let raw = String(requestLine[r.upperBound...].prefix { $0 != " " && $0 != "&" })
+        let value = raw.removingPercentEncoding ?? raw
+        return value.isEmpty ? nil : value
+    }
 
     /// Разбираем HTTP: находим ?type=... в request line и тело по Content-Length.
     private static func parse(_ data: Data) -> Request? {
@@ -56,13 +64,9 @@ final class TrafficServer {
         let lines = header.components(separatedBy: "\r\n")
         guard let requestLine = lines.first else { return nil }
 
-        // GET/POST /event?type=Stop HTTP/1.1
-        var type = "Unknown"
-        if let qmark = requestLine.range(of: "?type=") {
-            let tail = requestLine[qmark.upperBound...]
-            type = String(tail.prefix { $0 != " " && $0 != "&" })
-            type = type.removingPercentEncoding ?? type
-        }
+        // GET/POST /event?type=Stop&app=<bundleID> HTTP/1.1
+        let type = queryValue("type", in: requestLine) ?? "Unknown"
+        let app = queryValue("app", in: requestLine)
 
         var contentLength = 0
         for line in lines.dropFirst() {
@@ -74,7 +78,7 @@ final class TrafficServer {
 
         let body = data.subdata(in: headerEnd.upperBound..<data.endIndex)
         if body.count < contentLength { return nil } // тело ещё не догружено
-        return Request(type: type, body: body)
+        return Request(type: type, app: app, body: body)
     }
 
     private func dispatch(_ request: Request) {
@@ -84,7 +88,7 @@ final class TrafficServer {
             if let sid = obj["session_id"] as? String, !sid.isEmpty { sessionID = sid }
             cwd = obj["cwd"] as? String
         }
-        onEvent(request.type, sessionID, cwd)
+        onEvent(request.type, sessionID, cwd, request.app)
     }
 
     private func respond(on conn: NWConnection) {

@@ -7,11 +7,18 @@ struct TrafficLightView: View {
     var shape: LightShape = .vertical
     var showLabel: Bool = false
     var onHover: (Bool) -> Void = { _ in }
+    var onActivate: () -> Void = {}
+    var onScale: () -> Void = {}
 
     @State private var hovered = false
 
     var body: some View {
         labeledContent
+            .contentShape(Rectangle())
+            // Двойной клик — масштаб (объявлен первым, чтобы выигрывал у одиночного);
+            // одиночный — вывести на передний план приложение сессии.
+            .onTapGesture(count: 2) { onScale() }
+            .onTapGesture(count: 1) { onActivate() }
             .animation(Anim.status, value: session.status)
             .animation(Anim.question, value: session.awaitingQuestion)
             .animation(Anim.hover, value: hovered)
@@ -333,14 +340,20 @@ struct RootView: View {
     @ObservedObject var ui: UIState
     var onHover: (Bool, SessionState?) -> Void = { _, _ in }
     var onScaleChanged: () -> Void = {}
+    var onActivate: (SessionState) -> Void = { _ in }
 
     var body: some View {
         // Нет сессий — ряд пустой (окно прячет AppController), само приложение живёт.
         HStack(alignment: ui.shape == .vertical ? .top : .bottom, spacing: Metric.rowGap) {
             ForEach(store.sessions) { session in
-                TrafficLightView(session: session, shape: ui.shape, showLabel: ui.showLabels) { inside in
-                    onHover(inside, session)
-                }
+                TrafficLightView(
+                    session: session,
+                    shape: ui.shape,
+                    showLabel: ui.showLabels,
+                    onHover: { inside in onHover(inside, session) },
+                    onActivate: { onActivate(session) },
+                    onScale: { ui.cycleScale(); onScaleChanged() }
+                )
             }
         }
         .padding(Metric.rowPad)
@@ -353,10 +366,5 @@ struct RootView: View {
         .animation(Anim.scale, value: ui.shape)
         .animation(Anim.scale, value: ui.showLabels)
         .animation(Anim.sessions, value: store.sessions.count)
-        .contentShape(Rectangle())
-        .onTapGesture(count: 2) {
-            ui.cycleScale()
-            onScaleChanged()
-        }
     }
 }

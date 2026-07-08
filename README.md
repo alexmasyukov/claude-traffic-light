@@ -6,10 +6,10 @@ A tiny always-on-top **traffic light** for macOS that shows what [Claude Code](h
 
 - 🟢 **green** — idle, agent finished and is waiting for you
 - 🟡 **yellow** — thinking / preparing / generating a reply (spinner animates)
-- 🔴 **red** — running a tool (spinner animates)
-- ❓ **question block** — lights up when Claude is waiting for your input / permission
+- 🔴 **red** — running a tool (spinner animates), or waiting for your answer to a question (steady, no spinner)
+- ❓ **question block** — Claude is waiting on you: a permission prompt, an `AskUserQuestion`, or a plain text question
 
-Each session gets its own light in a horizontal row. When a light shows the question block, its neighbours slide right so nothing overlaps.
+Each session gets its own light in a row. When a light shows the question block, its neighbours reflow so nothing overlaps. Lights can be switched between three shapes — vertical, horizontal, and triangular (🟡 top / 🟢 left / 🔴 right) — via the right-click menu.
 
 ## How it works
 
@@ -27,17 +27,19 @@ Claude Code fires lifecycle hooks; a small shell gateway forwards each event (wi
 |-------------------|--------------------------------|---------------|
 | `UserPromptSubmit`| prompt sent, agent starts      | 🟡 yellow      |
 | `PreToolUse`      | tool starts                    | 🔴 red         |
-| `PostToolUse`     | tool finished (thinking again) | 🟡 yellow      |
-| `Notification`    | waiting for input / permission | ❓ question     |
-| `Stop`            | agent finished                 | 🟢 green       |
+| `PostToolUse`     | tool finished (thinking again) | 🟡 yellow, clears ❓ |
+| `Notification`    | permission / waiting (only while the agent is active) | ❓ question |
+| `Stop`            | agent finished                 | 🟢 green — or 🔴 + ❓ if it ended with a text question |
 | `SessionStart` / `SessionEnd` | session appears / closes | add / remove light |
+
+See [`docs/hooks.md`](docs/hooks.md) for the full mapping, including how a text question at the end of a turn is detected (via the transcript) and turned into a 🔴 + ❓ light.
 
 ## Interaction
 
 - **Hover** — cursor turns into a hand, the light brightens, and a tooltip shows `folder · branch`.
 - **Double-click** — cycle scale +10% up to +50%, then reset. Scale and window position are remembered.
 - **Drag** — move the window anywhere; position is saved.
-- **Right-click** — context menu with **Quit**.
+- **Right-click** — context menu: **Сменить вид** (cycle vertical → horizontal → triangular, remembered) or **Quit**.
 
 ## Build & install
 
@@ -67,29 +69,27 @@ swift run
 
 ## Wire up the hooks
 
-Add the gateway script to your Claude Code hooks in `~/.claude/settings.json` (adjust the path to where you cloned this repo). Point every relevant event at:
+A ready-to-paste hooks block lives in [`hooks/settings.example.json`](hooks/settings.example.json). Merge its `"hooks"` object into `~/.claude/settings.json` and replace the placeholder path with your clone location:
 
-```
-/path/to/claude-traffic-light/hooks/traffic-hook.sh <EventName>
-```
+```bash
+# Print the block with your absolute path already filled in, then copy it into settings.json:
+sed "s#/ABSOLUTE/PATH/TO/claude-traffic-light#$(pwd)#g" hooks/settings.example.json
 
-For example a `PreToolUse` entry:
-
-```json
-{
-  "matcher": "*",
-  "hooks": [
-    { "type": "command", "command": "/path/to/claude-traffic-light/hooks/traffic-hook.sh PreToolUse", "timeout": 5 }
-  ]
-}
+# Make the scripts executable (once):
+chmod +x hooks/traffic-hook.sh hooks/last-question.py
 ```
 
-Repeat for `PostToolUse`, `UserPromptSubmit`, `Notification`, `SessionStart`, `SessionEnd`, and `Stop`. The script simply pipes the hook's stdin JSON to `http://127.0.0.1:47615`.
+Restart Claude Code (or start a new session) to reload `settings.json`. The gateway pipes each hook's stdin JSON to `http://127.0.0.1:47615` and fails silently when the app isn't running, so it never blocks Claude Code.
+
+**Step-by-step, event mapping, and the text-question detection are documented in [`docs/hooks.md`](docs/hooks.md).**
 
 ## Layout
 
-- `Sources/TrafficLight/` — Swift sources (App, Model, Overlay, Server, Tooltip)
+- `Sources/TrafficLight/` — Swift sources (App, Model, Overlay, Server, Tooltip, Design, Git, OverlayWindow)
 - `hooks/traffic-hook.sh` — hook → HTTP gateway
+- `hooks/last-question.py` — `Stop` transcript check (text question → 🔴 + ❓)
+- `hooks/settings.example.json` — ready-to-paste hooks block for `~/.claude/settings.json`
+- `docs/hooks.md` — full hooks setup & event mapping
 - `build-app.sh` — build the release `.app` bundle into `~/Applications`
 - `install-autostart.sh` — install the LaunchAgent
 - `com.alex.claude-traffic-light.plist` — LaunchAgent template

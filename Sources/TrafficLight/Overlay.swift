@@ -4,35 +4,71 @@ import SwiftUI
 /// onHover пробрасывается наружу для показа всплывающей подсказки.
 struct TrafficLightView: View {
     @ObservedObject var session: SessionState
+    var shape: LightShape = .vertical
     var onHover: (Bool) -> Void = { _ in }
 
     @State private var hovered = false
 
     var body: some View {
-        HStack(alignment: .top, spacing: 0) {          // «?» на уровне верхней (красной) лампы
-            lampColumn
-            if session.awaitingQuestion {
-                Spacer().frame(width: Metric.questionGap)
-                questionBlock.transition(.opacity)
+        content
+            .animation(Anim.status, value: session.status)
+            .animation(Anim.question, value: session.awaitingQuestion)
+            .animation(Anim.hover, value: hovered)
+            .onHover { inside in
+                hovered = inside
+                onHover(inside)
+                if inside { NSCursor.pointingHand.push() } else { NSCursor.pop() }
             }
-        }
-        .animation(Anim.status, value: session.status)
-        .animation(Anim.question, value: session.awaitingQuestion)
-        .animation(Anim.hover, value: hovered)
-        .onHover { inside in
-            hovered = inside
-            onHover(inside)
-            if inside { NSCursor.pointingHand.push() } else { NSCursor.pop() }
+    }
+
+    /// Раскладка одного светофора. Доп-секция «?»: сверху слева в горизонтальном
+    /// виде, справа — в вертикальном и треугольном.
+    @ViewBuilder private var content: some View {
+        if shape == .horizontal {
+            VStack(alignment: .leading, spacing: 0) {
+                if session.awaitingQuestion {
+                    questionBlock.transition(.opacity)
+                    Spacer().frame(height: Metric.questionGap)
+                }
+                lampBlock
+            }
+        } else {
+            HStack(alignment: .top, spacing: 0) {
+                lampBlock
+                if session.awaitingQuestion {
+                    Spacer().frame(width: Metric.questionGap)
+                    questionBlock.transition(.opacity)
+                }
+            }
         }
     }
 
     // MARK: - Светофор
 
-    private var lampColumn: some View {
-        VStack(spacing: Metric.lampSpacing) {
-            lamp(.working)
-            lamp(.thinking)
-            lamp(.idle)
+    @ViewBuilder private var lampSequence: some View {
+        lamp(.working)
+        lamp(.thinking)
+        lamp(.idle)
+    }
+
+    /// Лампы в корпусе — раскладка зависит от формы.
+    private var lampBlock: some View {
+        Group {
+            switch shape {
+            case .vertical:
+                VStack(spacing: Metric.lampSpacing) { lampSequence }
+            case .horizontal:
+                HStack(spacing: Metric.lampSpacing) { lampSequence }
+            case .triangular:
+                // 🟡 сверху по центру, 🟢 слева, 🔴 справа.
+                VStack(spacing: Metric.lampSpacing) {
+                    lamp(.thinking)
+                    HStack(spacing: Metric.lampSpacing) {
+                        lamp(.idle)
+                        lamp(.working)
+                    }
+                }
+            }
         }
         .padding(Metric.blockPadding)
         .background(corpus)
@@ -66,6 +102,7 @@ struct TrafficLightView: View {
         Image(systemName: "questionmark")
             .font(.system(size: Metric.lamp * Metric.questionMarkFactor, weight: .heavy))
             .foregroundColor(.white)
+            .rotationEffect(shape == .horizontal ? .degrees(-90) : .zero)   // «?» повёрнут под горизонтальный вид
             .frame(width: Metric.lamp, height: Metric.lamp)
             .padding(Metric.blockPadding)
             .background(
@@ -120,9 +157,9 @@ struct RootView: View {
 
     var body: some View {
         // Нет сессий — ряд пустой (окно прячет AppController), само приложение живёт.
-        HStack(alignment: .top, spacing: Metric.rowGap) {
+        HStack(alignment: ui.shape == .horizontal ? .bottom : .top, spacing: Metric.rowGap) {
             ForEach(store.sessions) { session in
-                TrafficLightView(session: session) { inside in
+                TrafficLightView(session: session, shape: ui.shape) { inside in
                     onHover(inside, session)
                 }
             }
@@ -134,6 +171,7 @@ struct RootView: View {
         // немасштабированный бокс и scaleEffect выкидывает его за правый-нижний край.
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .animation(Anim.scale, value: ui.scale)
+        .animation(Anim.scale, value: ui.shape)
         .animation(Anim.sessions, value: store.sessions.count)
         .contentShape(Rectangle())
         .onTapGesture(count: 2) {

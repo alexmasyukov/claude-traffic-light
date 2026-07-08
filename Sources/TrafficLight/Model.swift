@@ -110,17 +110,36 @@ final class SessionStore: ObservableObject {
 }
 
 /// Общий масштаб ряда: двойной клик +10% до +50%, затем сброс. Персист в UserDefaults.
+/// Форма/раскладка ламп в одном светофоре.
+enum LightShape: String, CaseIterable {
+    case vertical      // лампы столбиком, «?» справа
+    case horizontal    // лампы в ряд, «?» сверху слева
+    case triangular    // 🟡 сверху по центру, 🟢 слева, 🔴 справа; «?» справа
+}
+
 @MainActor
 final class UIState: ObservableObject {
     @Published var scale: Double
+    /// Форма светофоров, циклится по меню «Сменить вид». Персист.
+    @Published var shape: LightShape
 
     init() {
         let saved = UserDefaults.standard.double(forKey: Config.Key.uiScale)
         scale = (saved >= Config.scaleMin && saved <= Config.scaleMax) ? saved : Config.scaleMin
+        let savedShape = UserDefaults.standard.string(forKey: Config.Key.shape)
+        shape = savedShape.flatMap(LightShape.init(rawValue:)) ?? .vertical
     }
 
     func cycleScale() {
         scale = scale >= Config.scaleMax - 0.01 ? Config.scaleMin : scale + Config.scaleStep
         UserDefaults.standard.set(scale, forKey: Config.Key.uiScale)
+    }
+
+    /// Следующая форма по кругу: вертикальный → горизонтальный → треугольный → …
+    func cycleShape() {
+        let all = LightShape.allCases
+        let next = all.firstIndex(of: shape).map { all[($0 + 1) % all.count] } ?? .vertical
+        shape = next
+        UserDefaults.standard.set(shape.rawValue, forKey: Config.Key.shape)
     }
 }

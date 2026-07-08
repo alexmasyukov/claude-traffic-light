@@ -30,6 +30,9 @@ enum Metric {
 
     /// Ширина одного блока (светофор или доп-секция).
     static var blockWidth: CGFloat { lamp + 2 * blockPadding }
+
+    /// Сторона квадратного блока в треугольной раскладке (2 лампы × 2 лампы).
+    static var triSide: CGFloat { 2 * lamp + lampSpacing + 2 * blockPadding }
 }
 
 /// Цвета приложения.
@@ -84,5 +87,6 @@ enum Config {
     enum Key {
         static let windowOrigin = "windowOrigin"
         static let uiScale = "uiScale"
+        static let shape = "lightShape"
     }
 }

@@ -27,19 +27,36 @@ final class OverlayWindow: NSWindow {
     }
 }
 
-/// Hosting-view с контекстным меню по правому клику (пункт «Выход»).
+/// Hosting-view с контекстным меню по правому клику: «Сменить вид» и «Выход».
 final class MenuHostingView: NSHostingView<RootView> {
+    /// Циклит форму светофоров — задаёт AppController.
+    var onCycleShape: (() -> Void)?
+
     required init(rootView: RootView) { super.init(rootView: rootView) }
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError() }
 
     override func rightMouseDown(with event: NSEvent) {
         let menu = NSMenu()
+        // Отключаем авто-валидацию: пункты с явным target включены всегда
+        // (иначе кастомный пункт может оказаться заблокированным).
+        menu.autoenablesItems = false
+
+        let cycle = NSMenuItem(title: "Сменить вид",
+                               action: #selector(cycleShape),
+                               keyEquivalent: "")
+        cycle.target = self
+        menu.addItem(cycle)
+        menu.addItem(.separator())
+
         let quit = NSMenuItem(title: "Выход",
                               action: #selector(NSApplication.terminate(_:)),
                               keyEquivalent: "")
         quit.target = NSApp
         menu.addItem(quit)
+
         NSMenu.popUpContextMenu(menu, with: event, for: self)
     }
+
+    @objc private func cycleShape() { onCycleShape?() }
 }

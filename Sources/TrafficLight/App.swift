@@ -13,6 +13,11 @@ final class AppController: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         hosting = makeHosting()
         hosting.frame = NSRect(x: 0, y: 0, width: 60, height: 100)   // стартовый; подгонится в scheduleResize
+        hosting.onCycleShape = { [weak self] in
+            guard let self else { return }
+            self.ui.cycleShape()
+            self.scheduleResize()
+        }
 
         window = OverlayWindow.make(content: hosting)
         restorePosition()
@@ -82,15 +87,36 @@ final class AppController: NSObject, NSApplicationDelegate {
     // MARK: - Подгонка размера окна
 
     /// Детерминированный размер ряда светофоров (без масштаба) — из констант Metric.
+    /// Должен точно совпадать с интринсик-размером SwiftUI, иначе окно режет контент.
     private func baseRowSize() -> CGSize {
         let sessions = store.sessions
-        var width: CGFloat = 0
-        for session in sessions {
-            width += Metric.blockWidth
-            if session.awaitingQuestion { width += Metric.questionGap + Metric.blockWidth }
+        guard !sessions.isEmpty else { return .zero }
+        let gaps = Metric.rowGap * CGFloat(sessions.count - 1)
+
+        switch ui.shape {
+        case .horizontal:
+            // Лампы в ряд: ширина светофора = blockHeight, высота = blockWidth;
+            // «?» добавляется сверху, увеличивая высоту.
+            let width = Metric.blockHeight * CGFloat(sessions.count) + gaps + 2 * Metric.rowPad
+            var lightHeight = Metric.blockWidth
+            if sessions.contains(where: { $0.awaitingQuestion }) {
+                lightHeight += Metric.questionGap + Metric.blockWidth
+            }
+            return CGSize(width: width, height: lightHeight + 2 * Metric.rowPad)
+
+        case .vertical, .triangular:
+            // «?» добавляется справа, увеличивая ширину. Высота блока: blockHeight
+            // (столбик) или triSide (квадрат 2×2 для треугольника).
+            let lightSide = ui.shape == .triangular ? Metric.triSide : Metric.blockWidth
+            let blockH    = ui.shape == .triangular ? Metric.triSide : Metric.blockHeight
+            var width: CGFloat = 0
+            for session in sessions {
+                width += lightSide
+                if session.awaitingQuestion { width += Metric.questionGap + Metric.blockWidth }
+            }
+            width += gaps + 2 * Metric.rowPad
+            return CGSize(width: width, height: blockH + 2 * Metric.rowPad)
         }
-        width += Metric.rowGap * CGFloat(sessions.count - 1) + 2 * Metric.rowPad
-        return CGSize(width: width, height: Metric.blockHeight + 2 * Metric.rowPad)
     }
 
     private func scheduleResize() {

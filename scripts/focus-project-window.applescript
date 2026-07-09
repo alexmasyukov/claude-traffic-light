@@ -8,7 +8,10 @@
 --
 -- __BUNDLE_ID__  — bundle id of the app running Claude Code (e.g. com.jetbrains.WebStorm).
 --                  The app reads this from the hook's $__CFBundleIdentifier.
--- __PROJECT__    — text that appears in the window title (usually the project folder name).
+-- __PROJECT__    — text in the window title = the project root name (the folder that
+--                  holds .idea/.git). Note: this may differ from the CLI's cwd folder
+--                  when Claude Code runs in a subfolder (e.g. cwd .../myproj/e2e →
+--                  window title "myproj"). The app derives this root from cwd automatically.
 --
 -- Requirements (granted once, prompted on first run):
 --   • Automation — to control the target app and System Events.

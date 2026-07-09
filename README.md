@@ -37,7 +37,7 @@ See [`docs/hooks.md`](docs/hooks.md) for the full mapping, including how a text 
 ## Interaction
 
 - **Hover** — cursor turns into a hand, the light brightens, and a tooltip (pinned above the light) shows `folder · branch`.
-- **Click** — bring the session's window to the front. The owner app (from the hook's `__CFBundleIdentifier`) is activated, and for multi-window IDEs the window whose title contains the project folder name is raised (`activate` + `AXRaise` Apple Event). Needs Automation + Accessibility permission, prompted on first click (see [`scripts/`](scripts/README.md) for the standalone equivalent).
+- **Click** — bring the session's window to the front. The owner app (from the hook's `__CFBundleIdentifier`) is activated, and for multi-window IDEs the window titled after the **project root** — the nearest `.idea`/`.git` ancestor of the CLI's `cwd`, since Claude Code may run in a subfolder — is raised (`activate` + `AXRaise` Apple Event). Needs Automation + Accessibility; the Accessibility prompt is shown on first click if the permission is missing. See [`scripts/`](scripts/README.md) for the standalone equivalent.
 - **Double-click** — cycle scale +10% up to +50%, then reset. Scale and window position are remembered.
 - **Drag** — move the window anywhere; position is saved.
 - **Right-click** — context menu: **Сменить вид** (cycle vertical → horizontal → triangular), **Показать/Скрыть названия** (folder name under/beside each light, truncated to its length), or **Quit**. All remembered.

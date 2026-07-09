@@ -101,14 +101,18 @@ final class AppController: NSObject, NSApplicationDelegate {
         """)
 
         // 2) Поднять именно окно проекта (IDE с несколькими окнами) — нужен Accessibility.
-        //    Нет имени проекта — на этом всё; приложение уже активировано.
-        guard !session.label.isEmpty, session.label != "session" else { return }
+        //    Заголовок окна IDE = КОРЕНЬ проекта, а не папка, где запущен CLI (cwd может
+        //    быть подпапкой, напр. .../arenadata-network/e2e → окно называется
+        //    "arenadata-network"). Поэтому матчим по корню, а не по session.label.
+        guard let cwd = session.cwd, !cwd.isEmpty else { return }
+        let projectName = projectRootName(cwd: cwd)
+        guard !projectName.isEmpty, projectName != "/" else { return }
 
         // Нет прав Accessibility — показываем системный запрос и выходим: окно
         // поднимется на следующем клике, после того как пользователь выдаст доступ.
         guard ensureAccessibilityAccess() else { return }
 
-        let proj = escapedForAppleScript(session.label)
+        let proj = escapedForAppleScript(projectName)
         runAppleScript("""
         tell application "System Events"
             set procs to (every process whose bundle identifier is "\(bid)")
@@ -121,6 +125,24 @@ final class AppController: NSObject, NSApplicationDelegate {
             end if
         end tell
         """)
+    }
+
+    /// Имя корня проекта для матча окна IDE: ближайший предок cwd (включая сам cwd)
+    /// с маркером `.idea` (JetBrains), затем `.git`; иначе — последняя папка cwd.
+    private func projectRootName(cwd: String) -> String {
+        let fm = FileManager.default
+        for marker in [".idea", ".git"] {
+            var dir = cwd
+            while dir.count > 1 {
+                if fm.fileExists(atPath: (dir as NSString).appendingPathComponent(marker)) {
+                    return (dir as NSString).lastPathComponent
+                }
+                let parent = (dir as NSString).deletingLastPathComponent
+                if parent == dir { break }
+                dir = parent
+            }
+        }
+        return (cwd as NSString).lastPathComponent
     }
 
     /// Экранирование для строкового литерала AppleScript.
